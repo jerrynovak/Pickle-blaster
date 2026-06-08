@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Pickle Blaster</title>
+  <style>
+    :root {
+      --ink: #17351d;
+      --cream: #fff4c9;
+      --lime: #b9ef3d;
+      --green: #37a94a;
+      --dark-green: #176b38;
+      --pink: #ff5c8a;
+      --yellow: #ffd84a;
+      --sky: #95e8ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+      color: var(--ink);
+      background: #68c5ee;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    button { font: inherit; }
+
+    #game {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 420px;
+      overflow: hidden;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at 14% 14%, rgba(255,255,255,.95) 0 3%, transparent 3.2%),
+        radial-gradient(circle at 19% 14%, rgba(255,255,255,.95) 0 4%, transparent 4.2%),
+        radial-gradient(circle at 85% 22%, rgba(255,255,255,.8) 0 4%, transparent 4.2%),
+        linear-gradient(#76dafa 0 72%, #d7ef72 72% 100%);
+      cursor: crosshair;
+    }
+
+    #game::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 28%;
+      background:
+        radial-gradient(ellipse at 10% 20%, #81c74f 0 34%, transparent 35%),
+        radial-gradient(ellipse at 45% 20%, #72b845 0 37%, transparent 38%),
+        radial-gradient(ellipse at 80% 20%, #8acb4a 0 36%, transparent 37%),
+        linear-gradient(#78bd43, #4b8d32);
+      border-top: 8px solid rgba(255,255,255,.28);
+    }
+
+    #game::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 34px;
+      background: repeating-linear-gradient(90deg, #d69a46 0 34px, #c28437 34px 39px);
+      border-top: 8px solid #8a552b;
+      box-shadow: 0 -5px 0 rgba(255,255,255,.25);
+    }
+
+    .hud {
+      position: absolute;
+      z-index: 20;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      right: max(12px, env(safe-area-inset-right));
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .pill {
+      min-width: 105px;
+      padding: 8px 14px 9px;
+      border: 4px solid var(--ink);
+      border-radius: 18px;
+      background: var(--cream);
+      box-shadow: 0 5px 0 var(--ink);
+      text-align: center;
+      line-height: 1;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: clamp(10px, 2.4vw, 13px);
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    #score {
+      font-size: clamp(24px, 6vw, 35px);
+      color: var(--dark-green);
+    }
+
+    #crowns {
+      display: flex;
+      gap: 3px;
+      min-height: 31px;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(21px, 5vw, 29px);
+      filter: drop-shadow(0 2px 0 #c77c19);
+    }
+
+    #crowns .lost {
+      opacity: .18;
+      filter: grayscale(1);
+      transform: scale(.82);
+    }
+
+    .pickle {
+      --w: 55px;
+      --rot: 0deg;
+      position: absolute;
+      z-index: 5;
+      top: 0;
+      left: 0;
+      width: var(--w);
+      height: calc(var(--w) * 1.75);
+      border: max(3px, calc(var(--w) * .055)) solid #144d2c;
+      border-radius: 48% 52% 44% 56% / 21% 23% 77% 79%;
+      background:
+        radial-gradient(circle at 30% 25%, #d7f15b 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 48%, #d7f15b 0 4.5%, transparent 5.2%),
+        radial-gradient(circle at 28% 70%, #d7f15b 0 4%, transparent 4.7%),
+        radial-gradient(circle at 66% 82%, #d7f15b 0 3.6%, transparent 4.3%),
+        linear-gradient(100deg, #277a3b 0 15%, #48b848 25% 55%, #24833c 72%, #195e33);
+      box-shadow:
+        inset 7px 0 0 rgba(255,255,255,.12),
+        inset -6px 0 0 rgba(0,0,0,.12),
+        0 6px 0 rgba(23,53,29,.25);
+      transform: translate3d(var(--x), var(--y), 0) rotate(var(--rot));
+      transform-origin: center;
+      will-change: transform;
+      cursor: crosshair;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .pickle::before,
+    .pickle::after {
+      content: "";
+      position: absolute;
+      top: 35%;
+      width: 12%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: #102d1b;
+      box-shadow: inset 2px 2px 0 rgba(255,255,255,.55);
+    }
+
+    .pickle::before { left: 23%; }
+    .pickle::after { right: 23%; }
+
+    .mouth {
+      position: absolute;
+      left: 37%;
+      top: 52%;
+      width: 26%;
+      height: 11%;
+      border: max(2px, calc(var(--w) * .035)) solid #102d1b;
+      border-top: 0;
+      border-radius: 0 0 20px 20px;
+    }
+
+    .giant {
+      background:
+        radial-gradient(circle at 26% 22%, #e7fb67 0 3.5%, transparent 4.2%),
+        radial-gradient(circle at 70% 42%, #e7fb67 0 4%, transparent 4.7%),
+        radial-gradient(circle at 34% 66%, #e7fb67 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 79%, #e7fb67 0 3.5%, transparent 4.2%),
+        repeating-linear-gradient(98deg, transparent 0 18%, rgba(20,80,42,.18) 19% 23%, transparent 24% 35%),
+        linear-gradient(100deg, #327f3a, #6bc840 45%, #24713b);
+      filter: drop-shadow(0 0 9px #ecff60);
+    }
+
+    .hp {
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: -13px;
+      height: 8px;
+      overflow: hidden;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: white;
+    }
+
+    .hp > span {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: var(--pink);
+      transform-origin: left;
+    }
+
+    .splat {
+      position: absolute;
+      z-index: 8;
+      width: 90px;
+      height: 90px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: splat .42s ease-out forwards;
+    }
+
+    .splat::before {
+      content: "";
+      position: absolute;
+      inset: 22%;
+      border-radius: 44% 56% 51% 49%;
+      background: var(--lime);
+      box-shadow:
+        -30px 5px 0 -9px var(--lime),
+        31px -2px 0 -11px var(--lime),
+        -13px -30px 0 -12px var(--lime),
+        15px 31px 0 -11px var(--lime);
+    }
+
+    .splat b {
+      position: absolute;
+      inset: 28%;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      font-size: 18px;
+      transform: rotate(-8deg);
+    }
+
+    @keyframes splat {
+      from { opacity: 1; scale: .35; rotate: -15deg; }
+      70% { opacity: 1; scale: 1.18; }
+      to { opacity: 0; scale: 1.4; rotate: 9deg; }
+    }
+
+    .ground-bump {
+      position: absolute;
+      z-index: 12;
+      bottom: 20px;
+      transform: translateX(-50%);
+      font-size: clamp(28px, 8vw, 48px);
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 3px 3px 0 var(--ink);
+      pointer-events: none;
+      animation: bump .65s ease-out forwards;
+    }
+
+    @keyframes bump {
+      from { opacity: 1; translate: 0 10px; scale: .6; }
+      to { opacity: 0; translate: 0 -80px; scale: 1.15; }
+    }
+
+    #toast {
+      position: absolute;
+      z-index: 18;
+      top: 23%;
+      left: 50%;
+      width: min(90%, 600px);
+      transform: translateX(-50%);
+      color: #fff;
+      text-align: center;
+      font-size: clamp(24px, 7vw, 54px);
+      font-weight: 900;
+      text-shadow: 4px 4px 0 var(--ink);
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    #toast.show { animation: toast 1.55s ease-in-out; }
+
+    @keyframes toast {
+      0%, 100% { opacity: 0; transform: translate(-50%, -20px) scale(.8); }
+      14%, 76% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    }
+
+    .panel {
+      position: absolute;
+      z-index: 50;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(25, 76, 54, .38);
+      backdrop-filter: blur(4px);
+    }
+
+    .card {
+      width: min(92vw, 500px);
+      padding: clamp(20px, 5vw, 38px);
+      border: 6px solid var(--ink);
+      border-radius: 30px;
+      background: var(--cream);
+      box-shadow: 0 12px 0 var(--ink);
+      text-align: center;
+      transform: rotate(-1deg);
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--green);
+      font-size: clamp(42px, 12vw, 76px);
+      line-height: .82;
+      letter-spacing: -.06em;
+      text-transform: uppercase;
+      -webkit-text-stroke: 2px var(--ink);
+      text-shadow: 5px 5px 0 var(--yellow);
+    }
+
+    h1 span {
+      display: block;
+      color: var(--pink);
+      font-size: .72em;
+      letter-spacing: .02em;
+    }
+
+    .mascot {
+      display: inline-block;
+      margin: 12px 0 5px;
+      font-size: clamp(55px, 16vw, 88px);
+      filter: drop-shadow(4px 5px 0 rgba(23,53,29,.25));
+      transform: rotate(12deg);
+    }
+
+    .card p {
+      margin: 8px auto 17px;
+      max-width: 380px;
+      font-size: clamp(15px, 4vw, 20px);
+      line-height: 1.35;
+    }
+
+    .big-score {
+      margin: 10px 0 2px;
+      color: var(--dark-green);
+      font-size: clamp(30px, 8vw, 48px);
+    }
+
+    .action {
+      min-width: 190px;
+      min-height: 58px;
+      padding: 12px 25px;
+      border: 4px solid var(--ink);
+      border-radius: 18px;
+      background: var(--pink);
+      color: white;
+      box-shadow: 0 7px 0 var(--ink);
+      font-size: clamp(20px, 5vw, 27px);
+      font-weight: 900;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform .08s, box-shadow .08s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .action:hover { background: #ff3974; transform: translateY(-2px); }
+    .action:active { transform: translateY(5px); box-shadow: 0 2px 0 var(--ink); }
+    .action:focus-visible { outline: 5px solid white; outline-offset: 4px; }
+    .hidden { display: none; }
+
+    #mute {
+      position: absolute;
+      z-index: 30;
+      right: max(14px, env(safe-area-inset-right));
+      bottom: max(48px, calc(env(safe-area-inset-bottom) + 44px));
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--ink);
+      border-radius: 50%;
+      background: var(--cream);
+      box-shadow: 0 4px 0 var(--ink);
+      font-size: 22px;
+      cursor: pointer;
+    }
+
+    @media (max-height: 520px) {
+      .card { padding: 13px 22px; }
+      .mascot { display: none; }
+      .card p { margin: 6px auto 10px; }
+      h1 { font-size: 44px; }
+      .action { min-height: 48px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .splat, .ground-bump, #toast.show { animation-duration: .15s; }
+    }
+  </style>
+</head>
+<body>
+  <main id="game" aria-label="Pickle Blaster game area">
+    <div class="hud" aria-live="polite">
+      <div class="pill"><span class="label">Pickle Points</span><strong id="score">0</strong></div>
+      <div class="pill"><span class="label">Royal Pickle Guard</span><div id="crowns" aria-label="3 crowns"></div></div>
+    </div>
+
+    <div id="toast" aria-live="polite"></div>
+    <button id="mute" type="button" aria-label="Mute sound" title="Toggle sound">🔊</button>
+
+    <section id="startPanel" class="panel">
+      <div class="card">
+        <h1>Pickle <span>Blaster!</span></h1>
+        <div class="mascot" aria-hidden="true">🥒💥</div>
+        <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
+        <button id="startButton" class="action" type="button">Start Blasting</button>
+      </div>
+    </section>
+
+    <section id="gameOverPanel" class="panel hidden" aria-live="assertive">
+      <div class="card">
+        <h1>Pickle <span>Plop!</span></h1>
+        <div class="mascot" aria-hidden="true">👑🥒</div>
+        <div id="finalScore" class="big-score">0 points</div>
+        <p id="gameOverMessage">The royal picnic has been pickled!</p>
+        <button id="restartButton" class="action" type="button">Blast Again</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const game = document.getElementById("game");
+      const scoreEl = document.getElementById("score");
+      const crownsEl = document.getElementById("crowns");
+      const toastEl = document.getElementById("toast");
+      const startPanel = document.getElementById("startPanel");
+      const gameOverPanel = document.getElementById("gameOverPanel");
+      const finalScoreEl = document.getElementById("finalScore");
+      const gameOverMessage = document.getElementById("gameOverMessage");
+      const muteButton = document.getElementById("mute");
+
+      let pickles = [];
+      let score = 0;
+      let crowns = 3;
+      let running = false;
+      let startTime = 0;
+      let lastTime = 0;
+      let nextSpawn = 0;
+      let animationId = 0;
+      let audioContext = null;
+      let muted = false;
+      let lastGiantAt = -20000;
+
+      const cheers = ["DILL-IGHTFUL!", "CRUNCH-TASTIC!", "BRINE WORK!", "PICKLE POWER!", "JAR-DROPPING!"];
+      const bonks = ["BONK!", "PLOP!", "OH, DILL!"];
+
+      function updateCrowns() {
+        crownsEl.innerHTML = "";
+        for (let i = 0; i < 3; i++) {
+          const crown = document.createElement("span");
+          crown.textContent = "♛";
+          if (i >= crowns) crown.className = "lost";
+          crownsEl.appendChild(crown);
+        }
+        crownsEl.setAttribute("aria-label", `${crowns} crown${crowns === 1 ? "" : "s"} remaining`);
+      }
+
+      function sound(kind) {
+        if (muted) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          const now = audioContext.currentTime;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.type = kind === "bonk" ? "sawtooth" : "square";
+          oscillator.frequency.setValueAtTime(kind === "bonk" ? 130 : 470, now);
+          oscillator.frequency.exponentialRampToValueAtTime(kind === "bonk" ? 65 : 820, now + .1);
+          gain.gain.setValueAtTime(.055, now);
+          gain.gain.exponentialRampToValueAtTime(.001, now + .13);
+          oscillator.start(now);
+          oscillator.stop(now + .14);
+        } catch (_) {}
+      }
+
+      function showToast(message) {
+        toastEl.textContent = message;
+        toastEl.classList.remove("show");
+        void toastEl.offsetWidth;
+        toastEl.classList.add("show");
+      }
+
+      function makeSplat(x, y, text = "POP!") {
+        const splat = document.createElement("div");
+        splat.className = "splat";
+        splat.style.left = `${x}px`;
+        splat.style.top = `${y}px`;
+        splat.innerHTML = `<b>${text}</b>`;
+        game.appendChild(splat);
+        setTimeout(() => splat.remove(), 500);
+      }
+
+      function spawnPickle(elapsed) {
+        const level = Math.min(1.8, elapsed / 60000);
+        const giantChance = elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
+        const giant = giantChance;
+        if (giant) lastGiantAt = elapsed;
+
+        const viewportWidth = game.clientWidth;
+        let width = giant
+          ? Math.min(viewportWidth * .3, 175)
+          : 38 + Math.random() * Math.min(54, viewportWidth * .09);
+        width = Math.max(36, width);
+
+        const el = document.createElement("div");
+        const mouth = document.createElement("span");
+        el.className = `pickle${giant ? " giant" : ""}`;
+        mouth.className = "mouth";
+        el.appendChild(mouth);
+
+        const maxHp = giant ? Math.max(3, Math.round(width / 38)) : 1;
+        if (giant) {
+          const hp = document.createElement("span");
+          hp.className = "hp";
+          hp.innerHTML = "<span></span>";
+          el.appendChild(hp);
+          showToast("GIANT GHERKIN!");
+        }
+
+        el.style.setProperty("--w", `${width}px`);
+        const margin = 8;
+        const x = margin + Math.random() * Math.max(1, viewportWidth - width - margin * 2);
+        const baseSpeed = 84 + (92 - Math.min(width, 92)) * 1.25;
+        const speed = (giant ? 67 : baseSpeed) * (1 + level * .55);
+        const pickle = {
+          el, x, y: -width * 1.9, width, speed,
+          rot: Math.random() * 26 - 13,
+          spin: (Math.random() * 42 - 21) * (giant ? .35 : 1),
+          hp: maxHp, maxHp, giant, alive: true
+        };
+
+        el.style.setProperty("--x", `${x}px`);
+        el.style.setProperty("--y", `${pickle.y}px`);
+        el.style.setProperty("--rot", `${pickle.rot}deg`);
+        el.addEventListener("pointerdown", event => blast(event, pickle));
+        game.appendChild(el);
+        pickles.push(pickle);
+      }
+
+      function blast(event, pickle) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!running || !pickle.alive) return;
+
+        pickle.hp--;
+        sound("blast");
+        const rect = pickle.el.getBoundingClientRect();
+        makeSplat(event.clientX || rect.left + rect.width / 2, event.clientY || rect.top + rect.height / 2, pickle.hp ? `${pickle.hp}!` : "POP!");
+
+        if (pickle.hp > 0) {
+          pickle.el.animate(
+            [{ transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot}deg) scale(1)` },
+             { transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot - 8}deg) scale(.9)` },
+             { transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot}deg) scale(1)` }],
+            { duration: 130 }
+          );
+          pickle.el.querySelector(".hp > span").style.transform = `scaleX(${pickle.hp / pickle.maxHp})`;
+          score += 2;
+        } else {
+          pickle.alive = false;
+          pickle.el.remove();
+          score += pickle.giant ? 25 + pickle.maxHp * 3 : Math.max(5, Math.round(12 - pickle.width / 12));
+          if (pickle.giant) showToast("HUGE DILL!");
+          else if (score > 0 && score % 50 < 10) showToast(cheers[Math.floor(Math.random() * cheers.length)]);
+        }
+        scoreEl.textContent = score;
+      }
+
+      function groundImpact(pickle) {
+        pickle.alive = false;
+        pickle.el.remove();
+        sound("bonk");
+
+        const bump = document.createElement("div");
+        bump.className = "ground-bump";
+        bump.style.left = `${pickle.x + pickle.width / 2}px`;
+        bump.textContent = bonks[Math.floor(Math.random() * bonks.length)];
+        game.appendChild(bump);
+        setTimeout(() => bump.remove(), 700);
+
+        if (crowns > 0) {
+          crowns--;
+          updateCrowns();
+          showToast(crowns ? `${crowns} CROWN${crowns === 1 ? "" : "S"} LEFT!` : "NO CROWNS LEFT!");
+          game.animate(
+            [{ transform: "translateX(0)" }, { transform: "translateX(-7px)" },
+             { transform: "translateX(7px)" }, { transform: "translateX(0)" }],
+            { duration: 180 }
+          );
+        } else {
+          endGame();
+        }
+      }
+
+      function frame(time) {
+        if (!running) return;
+        const dt = Math.min(34, time - lastTime) / 1000;
+        const elapsed = time - startTime;
+        lastTime = time;
+
+        if (time >= nextSpawn) {
+          spawnPickle(elapsed);
+          const ramp = Math.min(650, elapsed / 75);
+          nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
+        }
+
+        const ground = game.clientHeight - 40;
+        for (const pickle of pickles) {
+          if (!pickle.alive) continue;
+          pickle.y += pickle.speed * dt;
+          pickle.rot += pickle.spin * dt;
+          pickle.el.style.setProperty("--y", `${pickle.y}px`);
+          pickle.el.style.setProperty("--rot", `${pickle.rot}deg`);
+          if (pickle.y + pickle.width * 1.75 >= ground) groundImpact(pickle);
+        }
+        pickles = pickles.filter(pickle => pickle.alive);
+        animationId = requestAnimationFrame(frame);
+      }
+
+      function clearPickles() {
+        pickles.forEach(pickle => pickle.el.remove());
+        pickles = [];
+        game.querySelectorAll(".splat, .ground-bump").forEach(el => el.remove());
+      }
+
+      function startGame() {
+        cancelAnimationFrame(animationId);
+        clearPickles();
+        score = 0;
+        crowns = 3;
+        lastGiantAt = -20000;
+        scoreEl.textContent = "0";
+        updateCrowns();
+        startPanel.classList.add("hidden");
+        gameOverPanel.classList.add("hidden");
+        running = true;
+        startTime = performance.now();
+        lastTime = startTime;
+        nextSpawn = startTime + 420;
+        animationId = requestAnimationFrame(frame);
+      }
+
+      function endGame() {
+        running = false;
+        cancelAnimationFrame(animationId);
+        finalScoreEl.textContent = `${score} point${score === 1 ? "" : "s"}`;
+        const messages = score < 40
+          ? ["The pickles formed a tiny green uprising.", "The royal picnic got extra crunchy."]
+          : score < 120
+            ? ["A noble effort! The dill was strong today.", "You blasted bravely, Pickle Pal!"]
+            : ["Legend says the jars still fear your name.", "A truly brine-boggling performance!"];
+        gameOverMessage.textContent = messages[Math.floor(Math.random() * messages.length)];
+        setTimeout(() => gameOverPanel.classList.remove("hidden"), 300);
+      }
+
+      document.getElementById("startButton").addEventListener("click", startGame);
+      document.getElementById("restartButton").addEventListener("click", startGame);
+      muteButton.addEventListener("click", () => {
+        muted = !muted;
+        muteButton.textContent = muted ? "🔇" : "🔊";
+        muteButton.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden && running) lastTime = performance.now();
+      });
+
+      updateCrowns();
+    })();
+  </script>
+</body>
+</html>
