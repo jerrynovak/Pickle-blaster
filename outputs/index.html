@@ -607,7 +607,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.82</div>
+        <div class="version">Version 0.83</div>
       </div>
     </section>
 
@@ -728,6 +728,65 @@
           gain.gain.exponentialRampToValueAtTime(.001, now + .13);
           oscillator.start(now);
           oscillator.stop(now + .14);
+        } catch (_) {}
+      }
+
+      function spicyExplosionSound() {
+        if (muted) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          const now = audioContext.currentTime;
+          const master = audioContext.createGain();
+          const compressor = audioContext.createDynamicsCompressor();
+          master.connect(compressor);
+          compressor.connect(audioContext.destination);
+          master.gain.setValueAtTime(.28, now);
+          master.gain.exponentialRampToValueAtTime(.001, now + 1.25);
+
+          const boom = audioContext.createOscillator();
+          const boomGain = audioContext.createGain();
+          boom.type = "sine";
+          boom.frequency.setValueAtTime(105, now);
+          boom.frequency.exponentialRampToValueAtTime(28, now + .65);
+          boomGain.gain.setValueAtTime(.8, now);
+          boomGain.gain.exponentialRampToValueAtTime(.001, now + .9);
+          boom.connect(boomGain);
+          boomGain.connect(master);
+          boom.start(now);
+          boom.stop(now + .95);
+
+          const rumble = audioContext.createOscillator();
+          const rumbleGain = audioContext.createGain();
+          rumble.type = "sawtooth";
+          rumble.frequency.setValueAtTime(52, now + .08);
+          rumble.frequency.exponentialRampToValueAtTime(24, now + 1.15);
+          rumbleGain.gain.setValueAtTime(.001, now);
+          rumbleGain.gain.linearRampToValueAtTime(.25, now + .12);
+          rumbleGain.gain.exponentialRampToValueAtTime(.001, now + 1.2);
+          rumble.connect(rumbleGain);
+          rumbleGain.connect(master);
+          rumble.start(now);
+          rumble.stop(now + 1.22);
+
+          const noiseLength = Math.floor(audioContext.sampleRate * .7);
+          const noiseBuffer = audioContext.createBuffer(1, noiseLength, audioContext.sampleRate);
+          const noiseData = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < noiseLength; i++) {
+            noiseData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / noiseLength, 2);
+          }
+          const noise = audioContext.createBufferSource();
+          const noiseFilter = audioContext.createBiquadFilter();
+          const noiseGain = audioContext.createGain();
+          noise.buffer = noiseBuffer;
+          noiseFilter.type = "lowpass";
+          noiseFilter.frequency.setValueAtTime(950, now);
+          noiseFilter.frequency.exponentialRampToValueAtTime(110, now + .7);
+          noiseGain.gain.setValueAtTime(.55, now);
+          noiseGain.gain.exponentialRampToValueAtTime(.001, now + .72);
+          noise.connect(noiseFilter);
+          noiseFilter.connect(noiseGain);
+          noiseGain.connect(master);
+          noise.start(now);
         } catch (_) {}
       }
 
@@ -897,7 +956,7 @@
         );
         game.appendChild(ring);
         setTimeout(() => ring.remove(), 550);
-        sound("explosion");
+        spicyExplosionSound();
 
         let blasted = 0;
         for (const target of pickles) {
