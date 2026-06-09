@@ -247,6 +247,37 @@
       pointer-events: none;
     }
 
+    .sweet {
+      border-color: #8f2851;
+      background:
+        radial-gradient(circle at 30% 25%, #3c9d49 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 48%, #3c9d49 0 4.5%, transparent 5.2%),
+        radial-gradient(circle at 28% 70%, #3c9d49 0 4%, transparent 4.7%),
+        radial-gradient(circle at 66% 82%, #3c9d49 0 3.6%, transparent 4.3%),
+        linear-gradient(100deg, #d83f78 0 15%, #ff7aa8 25% 55%, #e74f86 72%, #ad315f);
+      filter: drop-shadow(0 0 10px rgba(255, 92, 138, .8));
+    }
+
+    .sweet .mouth {
+      left: 34%;
+      width: 32%;
+      height: 9%;
+      border: max(3px, calc(var(--w) * .05)) solid #c51645;
+      border-top: max(2px, calc(var(--w) * .025)) solid #ef3e67;
+      border-radius: 50%;
+      background: #ff6b8f;
+      transform: rotate(-4deg);
+    }
+
+    .sweet .friendly-crown {
+      color: #ff5caa;
+      text-shadow:
+        -2px -2px 0 #8f2851,
+        2px -2px 0 #8f2851,
+        -2px 2px 0 #8f2851,
+        2px 2px 0 #8f2851;
+    }
+
     @keyframes tongue-wag {
       from { transform: rotate(-9deg); }
       to { transform: rotate(9deg); }
@@ -531,7 +562,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.61</div>
+        <div class="version">Version 0.7</div>
       </div>
     </section>
 
@@ -575,6 +606,10 @@
       let muted = false;
       let lastGiantAt = -20000;
       let highScore = loadHighScore();
+      let recoveryPoints = 0;
+      let sweetThreshold = 1000;
+      let sweetPending = false;
+      let sweetActive = false;
 
       const cheers = ["DILL-IGHTFUL!", "CRUNCH-TASTIC!", "BRINE WORK!", "PICKLE POWER!", "JAR-DROPPING!"];
       const bonks = ["BONK!", "PLOP!", "OH, DILL!"];
@@ -611,11 +646,19 @@
         crownsEl.setAttribute("aria-label", `${crowns} crown${crowns === 1 ? "" : "s"} remaining`);
       }
 
+      function beginRecoveryCycle() {
+        recoveryPoints = 0;
+        sweetPending = false;
+        sweetActive = false;
+      }
+
       function loseCrown(message) {
+        const hadCrowns = crowns > 0;
         if (crowns > 0) {
           crowns--;
           updateCrowns();
         }
+        if (hadCrowns && crowns === 0) beginRecoveryCycle();
         showToast(message || (crowns ? `${crowns} CROWN${crowns === 1 ? "" : "S"} LEFT!` : "NO CROWNS LEFT!"));
         game.animate(
           [{ transform: "translateX(0)" }, { transform: "translateX(-7px)" },
@@ -660,13 +703,31 @@
         setTimeout(() => splat.remove(), 500);
       }
 
+      function addScore(points) {
+        score += points;
+        scoreEl.textContent = score;
+        if (crowns === 0 && !sweetPending && !sweetActive) {
+          recoveryPoints += points;
+          if (recoveryPoints >= sweetThreshold) {
+            sweetPending = true;
+            showToast("SWEET PICKLE INCOMING!");
+          }
+        }
+      }
+
       function spawnPickle(elapsed) {
         const level = Math.min(1.8, elapsed / 60000);
-        const giantChance = elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
+        const sweet = sweetPending;
+        const giantChance = !sweet && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
-        const friendly = !giant && elapsed > 4000 && Math.random() < .06;
-        const rascal = !giant && !friendly && elapsed > 5000 && Math.random() < .09;
+        const friendly = !sweet && !giant && elapsed > 4000 && Math.random() < .06;
+        const rascal = !sweet && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
+        if (sweet) {
+          sweetPending = false;
+          sweetActive = true;
+          showToast("THE SWEET PICKLE!");
+        }
 
         const viewportWidth = game.clientWidth;
         let width = giant
@@ -676,10 +737,10 @@
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}`;
+        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
-        if (friendly) {
+        if (friendly || sweet) {
           const crown = document.createElement("span");
           crown.className = "friendly-crown";
           crown.textContent = "♛";
@@ -700,7 +761,7 @@
           el, x, y: -width * 1.9, width, initialWidth: width, speed,
           rot: Math.random() * 26 - 13,
           spin: (Math.random() * 42 - 21) * (giant ? .35 : 1),
-          hp: maxHp, maxHp, giant, rascal, friendly, tongueOut: false,
+          hp: maxHp, maxHp, giant, rascal, friendly, sweet, tongueOut: false,
           nextTongue: performance.now() + 800 + Math.random() * 1800,
           tongueUntil: 0, alive: true
         };
@@ -741,18 +802,24 @@
           if (Math.hypot(pickleX - centerX, pickleY - centerY) <= radius) {
             pickle.alive = false;
             pickle.el.remove();
-            if (pickle.friendly) {
-              loseCrown("THE ROYAL PICKLE!");
+            if (pickle.friendly || pickle.sweet) {
               makeSplat(pickleX, pickleY, "OOPS!");
+              if (pickle.sweet) sweetActive = false;
+              if (crowns === 0) {
+                showToast(pickle.sweet ? "SWEET PICKLE BLASTED!" : "ROYAL PICKLE BLASTED!");
+                endGame();
+                return;
+              }
+              loseCrown(pickle.sweet ? "OH NO! SWEET PICKLE!" : "THE ROYAL PICKLE!");
               friendlyBlasted++;
             } else {
-              score += picklePoints(pickle);
+              addScore(picklePoints(pickle));
               makeSplat(pickleX, pickleY, "BOOM!");
               blasted++;
             }
           }
         }
-        score += picklePoints(source);
+        addScore(picklePoints(source));
         showToast(
           friendlyBlasted
             ? "OH NO! ROYAL PICKLE!"
@@ -769,17 +836,23 @@
         event.stopPropagation();
         if (!running || !pickle.alive) return;
 
-        if (pickle.friendly) {
+        if (pickle.friendly || pickle.sweet) {
           const friendlyRect = pickle.el.getBoundingClientRect();
           pickle.alive = false;
           pickle.el.remove();
+          if (pickle.sweet) sweetActive = false;
           sound("bonk");
           makeSplat(
             event.clientX || friendlyRect.left + friendlyRect.width / 2,
             event.clientY || friendlyRect.top + friendlyRect.height / 2,
             "OOPS!"
           );
-          loseCrown("OH NO! FRIENDLY PICKLE!");
+          if (crowns === 0) {
+            showToast(pickle.sweet ? "SWEET PICKLE BLASTED!" : "ROYAL PICKLE BLASTED!");
+            endGame();
+          } else {
+            loseCrown(pickle.sweet ? "OH NO! SWEET PICKLE!" : "OH NO! FRIENDLY PICKLE!");
+          }
           return;
         }
 
@@ -811,14 +884,14 @@
              { transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot}deg) scale(1)` }],
             { duration: 130 }
           );
-          score += 2;
+          addScore(2);
         } else {
           pickle.alive = false;
           pickle.el.remove();
           if (willExplode) {
             explodePickle(pickle);
           } else {
-            score += picklePoints(pickle);
+            addScore(picklePoints(pickle));
           }
           if (pickle.giant) showToast("HUGE DILL!");
           else if (!willExplode && score > 0 && score % 50 < 10) showToast(cheers[Math.floor(Math.random() * cheers.length)]);
@@ -829,6 +902,16 @@
       function groundImpact(pickle) {
         pickle.alive = false;
         pickle.el.remove();
+        if (pickle.sweet) {
+          sweetActive = false;
+          crowns = Math.min(3, crowns + 1);
+          updateCrowns();
+          recoveryPoints = 0;
+          sweetThreshold *= 2;
+          showToast("A CROWN RESTORED!");
+          sound("blast");
+          return;
+        }
         if (pickle.friendly) {
           showToast("ROYAL PICKLE SAFE!");
           return;
@@ -898,6 +981,10 @@
         clearPickles();
         score = 0;
         crowns = 3;
+        recoveryPoints = 0;
+        sweetThreshold = 1000;
+        sweetPending = false;
+        sweetActive = false;
         lastGiantAt = -20000;
         scoreEl.textContent = "0";
         game.style.setProperty("--ground-rise", "0px");
