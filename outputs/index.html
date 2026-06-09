@@ -29,7 +29,7 @@
       background: #68c5ee;
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation;
+      touch-action: none;
     }
 
     button { font: inherit; }
@@ -543,8 +543,8 @@
         el.style.setProperty("--w", `${width}px`);
         const margin = 8;
         const x = margin + Math.random() * Math.max(1, viewportWidth - width - margin * 2);
-        const baseSpeed = 84 + (92 - Math.min(width, 92)) * 1.25;
-        const speed = (giant ? 67 : baseSpeed) * (1 + level * .55);
+        const baseSpeed = 52 + (92 - Math.min(width, 92)) * .8;
+        const speed = (giant ? 34 : baseSpeed) * (1 + level * .55);
         const pickle = {
           el, x, y: -width * 1.9, width, speed,
           rot: Math.random() * 26 - 13,
@@ -686,6 +686,17 @@
 
       document.addEventListener("visibilitychange", () => {
         if (document.hidden && running) lastTime = performance.now();
+      });
+
+      let lastTouchEnd = 0;
+      game.addEventListener("touchend", event => {
+        const now = Date.now();
+        if (now - lastTouchEnd < 350) event.preventDefault();
+        lastTouchEnd = now;
+      }, { passive: false });
+      game.addEventListener("dblclick", event => event.preventDefault());
+      ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+        game.addEventListener(type, event => event.preventDefault(), { passive: false });
       });
 
       updateCrowns();
