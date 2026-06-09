@@ -218,6 +218,34 @@
       animation: tongue-wag .28s ease-in-out infinite alternate;
     }
 
+    .friendly {
+      border-color: #416728;
+      background:
+        radial-gradient(circle at 30% 25%, #3f8e3d 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 48%, #3f8e3d 0 4.5%, transparent 5.2%),
+        radial-gradient(circle at 28% 70%, #3f8e3d 0 4%, transparent 4.7%),
+        radial-gradient(circle at 66% 82%, #3f8e3d 0 3.6%, transparent 4.3%),
+        linear-gradient(100deg, #d7b629 0 15%, #ffe45b 25% 55%, #e1bd2d 72%, #ba9420);
+      filter: drop-shadow(0 0 8px rgba(255, 235, 95, .7));
+    }
+
+    .friendly-crown {
+      position: absolute;
+      z-index: 3;
+      top: calc(var(--w) * -.42);
+      left: 50%;
+      color: var(--yellow);
+      font-size: calc(var(--w) * .58);
+      line-height: 1;
+      text-shadow:
+        -2px -2px 0 #8a552b,
+        2px -2px 0 #8a552b,
+        -2px 2px 0 #8a552b,
+        2px 2px 0 #8a552b;
+      transform: translateX(-50%) rotate(-6deg);
+      pointer-events: none;
+    }
+
     @keyframes tongue-wag {
       from { transform: rotate(-9deg); }
       to { transform: rotate(9deg); }
@@ -546,6 +574,19 @@
         crownsEl.setAttribute("aria-label", `${crowns} crown${crowns === 1 ? "" : "s"} remaining`);
       }
 
+      function loseCrown(message) {
+        if (crowns > 0) {
+          crowns--;
+          updateCrowns();
+        }
+        showToast(message || (crowns ? `${crowns} CROWN${crowns === 1 ? "" : "S"} LEFT!` : "NO CROWNS LEFT!"));
+        game.animate(
+          [{ transform: "translateX(0)" }, { transform: "translateX(-7px)" },
+           { transform: "translateX(7px)" }, { transform: "translateX(0)" }],
+          { duration: 180 }
+        );
+      }
+
       function sound(kind) {
         if (muted) return;
         try {
@@ -586,7 +627,8 @@
         const level = Math.min(1.8, elapsed / 60000);
         const giantChance = elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
-        const rascal = !giant && elapsed > 5000 && Math.random() < .09;
+        const friendly = !giant && elapsed > 4000 && Math.random() < .06;
+        const rascal = !giant && !friendly && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
 
         const viewportWidth = game.clientWidth;
@@ -597,9 +639,15 @@
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}`;
+        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
+        if (friendly) {
+          const crown = document.createElement("span");
+          crown.className = "friendly-crown";
+          crown.textContent = "♛";
+          el.appendChild(crown);
+        }
 
         const maxHp = giant ? Math.max(3, Math.round(width / 38)) : 1;
         if (giant) {
@@ -619,7 +667,7 @@
           el, x, y: -width * 1.9, width, speed,
           rot: Math.random() * 26 - 13,
           spin: (Math.random() * 42 - 21) * (giant ? .35 : 1),
-          hp: maxHp, maxHp, giant, rascal, tongueOut: false,
+          hp: maxHp, maxHp, giant, rascal, friendly, tongueOut: false,
           nextTongue: performance.now() + 800 + Math.random() * 1800,
           tongueUntil: 0, alive: true
         };
@@ -652,6 +700,7 @@
         setTimeout(() => ring.remove(), 550);
 
         let blasted = 0;
+        let friendlyBlasted = 0;
         for (const pickle of pickles) {
           if (!pickle.alive || pickle === source) continue;
           const pickleX = pickle.x + pickle.width / 2;
@@ -659,13 +708,23 @@
           if (Math.hypot(pickleX - centerX, pickleY - centerY) <= radius) {
             pickle.alive = false;
             pickle.el.remove();
-            score += picklePoints(pickle);
-            makeSplat(pickleX, pickleY, "BOOM!");
-            blasted++;
+            if (pickle.friendly) {
+              loseCrown("THE ROYAL PICKLE!");
+              makeSplat(pickleX, pickleY, "OOPS!");
+              friendlyBlasted++;
+            } else {
+              score += picklePoints(pickle);
+              makeSplat(pickleX, pickleY, "BOOM!");
+              blasted++;
+            }
           }
         }
         score += picklePoints(source);
-        showToast(blasted ? `BRINE BLAST x${blasted + 1}!` : "BRINE BLAST!");
+        showToast(
+          friendlyBlasted
+            ? "OH NO! ROYAL PICKLE!"
+            : blasted ? `BRINE BLAST x${blasted + 1}!` : "BRINE BLAST!"
+        );
         game.animate(
           [{ transform: "scale(1)" }, { transform: "scale(1.018)" }, { transform: "scale(1)" }],
           { duration: 220 }
@@ -676,6 +735,20 @@
         event.preventDefault();
         event.stopPropagation();
         if (!running || !pickle.alive) return;
+
+        if (pickle.friendly) {
+          const friendlyRect = pickle.el.getBoundingClientRect();
+          pickle.alive = false;
+          pickle.el.remove();
+          sound("bonk");
+          makeSplat(
+            event.clientX || friendlyRect.left + friendlyRect.width / 2,
+            event.clientY || friendlyRect.top + friendlyRect.height / 2,
+            "OOPS!"
+          );
+          loseCrown("OH NO! FRIENDLY PICKLE!");
+          return;
+        }
 
         const willExplode = pickle.rascal && pickle.tongueOut && pickle.hp === 1;
         pickle.hp--;
@@ -713,6 +786,10 @@
       function groundImpact(pickle) {
         pickle.alive = false;
         pickle.el.remove();
+        if (pickle.friendly) {
+          showToast("ROYAL PICKLE SAFE!");
+          return;
+        }
         sound("bonk");
 
         const bump = document.createElement("div");
@@ -723,14 +800,7 @@
         setTimeout(() => bump.remove(), 700);
 
         if (crowns > 0) {
-          crowns--;
-          updateCrowns();
-          showToast(crowns ? `${crowns} CROWN${crowns === 1 ? "" : "S"} LEFT!` : "NO CROWNS LEFT!");
-          game.animate(
-            [{ transform: "translateX(0)" }, { transform: "translateX(-7px)" },
-             { transform: "translateX(7px)" }, { transform: "translateX(0)" }],
-            { duration: 180 }
-          );
+          loseCrown();
         } else {
           endGame();
         }
