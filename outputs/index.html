@@ -185,6 +185,44 @@
       border-radius: 0 0 20px 20px;
     }
 
+    .rascal {
+      background:
+        radial-gradient(circle at 30% 25%, #80b84d 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 48%, #80b84d 0 4.5%, transparent 5.2%),
+        radial-gradient(circle at 28% 70%, #80b84d 0 4%, transparent 4.7%),
+        radial-gradient(circle at 66% 82%, #80b84d 0 3.6%, transparent 4.3%),
+        linear-gradient(100deg, #0e4229 0 15%, #17693a 25% 55%, #0d4c2e 72%, #082f20);
+      filter: drop-shadow(0 0 7px rgba(255, 92, 138, .38));
+    }
+
+    .rascal .mouth::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: 45%;
+      left: 19%;
+      width: 62%;
+      height: 0;
+      border: max(2px, calc(var(--w) * .025)) solid #8c2147;
+      border-top: 0;
+      border-radius: 0 0 60% 60%;
+      background: #ff6b9a;
+      opacity: 0;
+      transform-origin: top;
+      transition: height .12s ease-out, opacity .08s;
+    }
+
+    .rascal.tongue-out .mouth::after {
+      height: calc(var(--w) * .42);
+      opacity: 1;
+      animation: tongue-wag .28s ease-in-out infinite alternate;
+    }
+
+    @keyframes tongue-wag {
+      from { transform: rotate(-9deg); }
+      to { transform: rotate(9deg); }
+    }
+
     .giant {
       background:
         radial-gradient(circle at 26% 22%, #e7fb67 0 3.5%, transparent 4.2%),
@@ -253,6 +291,26 @@
       from { opacity: 1; scale: .35; rotate: -15deg; }
       70% { opacity: 1; scale: 1.18; }
       to { opacity: 0; scale: 1.4; rotate: 9deg; }
+    }
+
+    .blast-ring {
+      --blast-diameter: 300px;
+      position: absolute;
+      z-index: 9;
+      width: var(--blast-diameter);
+      height: var(--blast-diameter);
+      border: 12px solid var(--yellow);
+      border-radius: 50%;
+      background: rgba(255, 92, 138, .65);
+      box-shadow: 0 0 0 10px rgba(255,255,255,.8);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: blast-ring .48s ease-out forwards;
+    }
+
+    @keyframes blast-ring {
+      from { opacity: 1; scale: .15; }
+      to { opacity: 0; scale: 1; }
     }
 
     .ground-bump {
@@ -428,7 +486,7 @@
 
     <section id="gameOverPanel" class="panel hidden" aria-live="assertive">
       <div class="card">
-        <h1>Pickle <span>Plop!</span></h1>
+        <h1>BLASTED<span>!</span></h1>
         <div class="mascot" aria-hidden="true">👑🥒</div>
         <div id="finalScore" class="big-score">0 points</div>
         <p id="gameOverMessage">The royal picnic has been pickled!</p>
@@ -486,9 +544,9 @@
           const gain = audioContext.createGain();
           oscillator.connect(gain);
           gain.connect(audioContext.destination);
-          oscillator.type = kind === "bonk" ? "sawtooth" : "square";
-          oscillator.frequency.setValueAtTime(kind === "bonk" ? 130 : 470, now);
-          oscillator.frequency.exponentialRampToValueAtTime(kind === "bonk" ? 65 : 820, now + .1);
+          oscillator.type = kind === "bonk" ? "sawtooth" : kind === "explosion" ? "triangle" : "square";
+          oscillator.frequency.setValueAtTime(kind === "bonk" ? 130 : kind === "explosion" ? 210 : 470, now);
+          oscillator.frequency.exponentialRampToValueAtTime(kind === "bonk" ? 65 : kind === "explosion" ? 45 : 820, now + .1);
           gain.gain.setValueAtTime(.055, now);
           gain.gain.exponentialRampToValueAtTime(.001, now + .13);
           oscillator.start(now);
@@ -517,6 +575,7 @@
         const level = Math.min(1.8, elapsed / 60000);
         const giantChance = elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
+        const rascal = !giant && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
 
         const viewportWidth = game.clientWidth;
@@ -527,7 +586,7 @@
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant ? " giant" : ""}`;
+        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
 
@@ -549,7 +608,9 @@
           el, x, y: -width * 1.9, width, speed,
           rot: Math.random() * 26 - 13,
           spin: (Math.random() * 42 - 21) * (giant ? .35 : 1),
-          hp: maxHp, maxHp, giant, alive: true
+          hp: maxHp, maxHp, giant, rascal, tongueOut: false,
+          nextTongue: performance.now() + 800 + Math.random() * 1800,
+          tongueUntil: 0, alive: true
         };
 
         el.style.setProperty("--x", `${x}px`);
@@ -560,15 +621,60 @@
         pickles.push(pickle);
       }
 
+      function picklePoints(pickle) {
+        return pickle.giant
+          ? 25 + pickle.maxHp * 3
+          : Math.max(5, Math.round(12 - pickle.width / 12));
+      }
+
+      function explodePickle(source) {
+        const centerX = source.x + source.width / 2;
+        const centerY = source.y + source.width * .875;
+        const radius = Math.min(240, Math.max(145, game.clientWidth * .24));
+        const ring = document.createElement("div");
+        sound("explosion");
+        ring.className = "blast-ring";
+        ring.style.left = `${centerX}px`;
+        ring.style.top = `${centerY}px`;
+        ring.style.setProperty("--blast-diameter", `${radius * 2}px`);
+        game.appendChild(ring);
+        setTimeout(() => ring.remove(), 550);
+
+        let blasted = 0;
+        for (const pickle of pickles) {
+          if (!pickle.alive || pickle === source) continue;
+          const pickleX = pickle.x + pickle.width / 2;
+          const pickleY = pickle.y + pickle.width * .875;
+          if (Math.hypot(pickleX - centerX, pickleY - centerY) <= radius) {
+            pickle.alive = false;
+            pickle.el.remove();
+            score += picklePoints(pickle);
+            makeSplat(pickleX, pickleY, "BOOM!");
+            blasted++;
+          }
+        }
+        score += picklePoints(source);
+        showToast(blasted ? `BRINE BLAST x${blasted + 1}!` : "BRINE BLAST!");
+        game.animate(
+          [{ transform: "scale(1)" }, { transform: "scale(1.018)" }, { transform: "scale(1)" }],
+          { duration: 220 }
+        );
+      }
+
       function blast(event, pickle) {
         event.preventDefault();
         event.stopPropagation();
         if (!running || !pickle.alive) return;
 
+        const willExplode = pickle.rascal && pickle.tongueOut && pickle.hp === 1;
         pickle.hp--;
         sound("blast");
         const rect = pickle.el.getBoundingClientRect();
-        makeSplat(event.clientX || rect.left + rect.width / 2, event.clientY || rect.top + rect.height / 2, pickle.hp ? `${pickle.hp}!` : "POP!");
+        makeSplat(
+          event.clientX || rect.left + rect.width / 2,
+          event.clientY || rect.top + rect.height / 2,
+          pickle.hp ? `${pickle.hp}!` : willExplode ? "KABOOM!" : "POP!"
+        );
 
         if (pickle.hp > 0) {
           pickle.el.animate(
@@ -582,9 +688,13 @@
         } else {
           pickle.alive = false;
           pickle.el.remove();
-          score += pickle.giant ? 25 + pickle.maxHp * 3 : Math.max(5, Math.round(12 - pickle.width / 12));
+          if (willExplode) {
+            explodePickle(pickle);
+          } else {
+            score += picklePoints(pickle);
+          }
           if (pickle.giant) showToast("HUGE DILL!");
-          else if (score > 0 && score % 50 < 10) showToast(cheers[Math.floor(Math.random() * cheers.length)]);
+          else if (!willExplode && score > 0 && score % 50 < 10) showToast(cheers[Math.floor(Math.random() * cheers.length)]);
         }
         scoreEl.textContent = score;
       }
@@ -630,6 +740,17 @@
         const ground = game.clientHeight - 40;
         for (const pickle of pickles) {
           if (!pickle.alive) continue;
+          if (pickle.rascal) {
+            if (!pickle.tongueOut && time >= pickle.nextTongue) {
+              pickle.tongueOut = true;
+              pickle.tongueUntil = time + 700 + Math.random() * 650;
+              pickle.el.classList.add("tongue-out");
+            } else if (pickle.tongueOut && time >= pickle.tongueUntil) {
+              pickle.tongueOut = false;
+              pickle.nextTongue = time + 1200 + Math.random() * 2400;
+              pickle.el.classList.remove("tongue-out");
+            }
+          }
           pickle.y += pickle.speed * dt;
           pickle.rot += pickle.spin * dt;
           pickle.el.style.setProperty("--y", `${pickle.y}px`);
@@ -643,7 +764,7 @@
       function clearPickles() {
         pickles.forEach(pickle => pickle.el.remove());
         pickles = [];
-        game.querySelectorAll(".splat, .ground-bump").forEach(el => el.remove());
+        game.querySelectorAll(".splat, .ground-bump, .blast-ring").forEach(el => el.remove());
       }
 
       function startGame() {
