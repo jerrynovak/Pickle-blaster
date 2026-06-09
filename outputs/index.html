@@ -278,6 +278,51 @@
         2px 2px 0 #8f2851;
     }
 
+    .fuse-pickle {
+      border-color: #050805;
+      background:
+        radial-gradient(circle at 30% 25%, #52b84f 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 48%, #52b84f 0 4.5%, transparent 5.2%),
+        radial-gradient(circle at 28% 70%, #52b84f 0 4%, transparent 4.7%),
+        radial-gradient(circle at 66% 82%, #52b84f 0 3.6%, transparent 4.3%),
+        linear-gradient(100deg, #050805 0 15%, #202820 25% 55%, #0b100c 72%, #000);
+      filter: drop-shadow(0 0 9px rgba(255, 116, 42, .7));
+    }
+
+    .fuse {
+      position: absolute;
+      z-index: 4;
+      top: calc(var(--w) * -.48);
+      left: 52%;
+      width: calc(var(--w) * .36);
+      height: calc(var(--w) * .52);
+      border-top: max(3px, calc(var(--w) * .055)) solid #49331f;
+      border-left: max(3px, calc(var(--w) * .055)) solid #49331f;
+      border-radius: 80% 0 0;
+      transform: rotate(10deg);
+      pointer-events: none;
+    }
+
+    .fuse::after {
+      content: "";
+      position: absolute;
+      top: calc(var(--w) * -.18);
+      left: calc(var(--w) * -.16);
+      width: calc(var(--w) * .25);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: #fff6a6;
+      box-shadow:
+        0 0 0 calc(var(--w) * .08) #ffb52e,
+        0 0 calc(var(--w) * .28) calc(var(--w) * .1) #ff5b22;
+      animation: fuse-spark .16s ease-in-out infinite alternate;
+    }
+
+    @keyframes fuse-spark {
+      from { scale: .72; rotate: -12deg; }
+      to { scale: 1.18; rotate: 12deg; }
+    }
+
     @keyframes tongue-wag {
       from { transform: rotate(-9deg); }
       to { transform: rotate(9deg); }
@@ -562,7 +607,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.71</div>
+        <div class="version">Version 0.81</div>
       </div>
     </section>
 
@@ -718,15 +763,18 @@
       function spawnPickle(elapsed) {
         const level = Math.min(1.8, elapsed / 60000);
         const sweet = sweetPending;
-        const giantChance = !sweet && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
+        const fusePickle = !sweet && elapsed > 7000 && Math.random() < .035;
+        const giantChance = !sweet && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
-        const friendly = !sweet && !giant && elapsed > 4000 && Math.random() < .06;
-        const rascal = !sweet && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
+        const friendly = !sweet && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
+        const rascal = !sweet && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
         if (sweet) {
           sweetPending = false;
           sweetActive = true;
           showToast("THE SWEET PICKLE!");
+        } else if (fusePickle) {
+          showToast("SPICY PICKLE!");
         }
 
         const viewportWidth = game.clientWidth;
@@ -737,7 +785,7 @@
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}`;
+        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
         if (friendly || sweet) {
@@ -745,6 +793,11 @@
           crown.className = "friendly-crown";
           crown.textContent = "♛";
           el.appendChild(crown);
+        }
+        if (fusePickle) {
+          const fuse = document.createElement("span");
+          fuse.className = "fuse";
+          el.appendChild(fuse);
         }
 
         const maxHp = giant ? Math.max(3, Math.round(width / 38)) : 1;
@@ -761,7 +814,7 @@
           el, x, y: -width * 1.9, width, initialWidth: width, speed,
           rot: Math.random() * 26 - 13,
           spin: (Math.random() * 42 - 21) * (giant ? .35 : 1),
-          hp: maxHp, maxHp, giant, rascal, friendly, sweet, tongueOut: false,
+          hp: maxHp, maxHp, giant, rascal, friendly, sweet, fusePickle, tongueOut: false,
           nextTongue: performance.now() + 800 + Math.random() * 1800,
           tongueUntil: 0, alive: true
         };
@@ -831,10 +884,65 @@
         );
       }
 
+      function detonateFusePickle(source) {
+        const centerX = source.x + source.width / 2;
+        const centerY = source.y + source.width * .875;
+        const ring = document.createElement("div");
+        ring.className = "blast-ring";
+        ring.style.left = `${centerX}px`;
+        ring.style.top = `${centerY}px`;
+        ring.style.setProperty(
+          "--blast-diameter",
+          `${Math.hypot(game.clientWidth, game.clientHeight) * 2}px`
+        );
+        game.appendChild(ring);
+        setTimeout(() => ring.remove(), 550);
+        sound("explosion");
+
+        let blasted = 0;
+        for (const target of pickles) {
+          if (!target.alive || target === source) continue;
+          const isCrowned = target.friendly || target.sweet;
+          if (!isCrowned && !target.fusePickle) {
+            const targetX = target.x + target.width / 2;
+            const targetY = target.y + target.width * .875;
+            target.alive = false;
+            target.el.remove();
+            addScore(picklePoints(target));
+            makeSplat(targetX, targetY, "POOF!");
+            blasted++;
+          }
+        }
+
+        addScore(picklePoints(source));
+        showToast(blasted ? `SPICY BLAST x${blasted + 1}!` : "SPICY BLAST!");
+        game.animate(
+          [
+            { filter: "brightness(1)", transform: "scale(1)" },
+            { filter: "brightness(1.8)", transform: "scale(1.025)" },
+            { filter: "brightness(1)", transform: "scale(1)" }
+          ],
+          { duration: 300 }
+        );
+      }
+
       function blast(event, pickle) {
         event.preventDefault();
         event.stopPropagation();
         if (!running || !pickle.alive) return;
+
+        if (pickle.fusePickle) {
+          const fuseRect = pickle.el.getBoundingClientRect();
+          pickle.alive = false;
+          pickle.el.remove();
+          makeSplat(
+            event.clientX || fuseRect.left + fuseRect.width / 2,
+            event.clientY || fuseRect.top + fuseRect.height / 2,
+            "KABOOM!"
+          );
+          detonateFusePickle(pickle);
+          return;
+        }
 
         if (pickle.friendly || pickle.sweet) {
           const friendlyRect = pickle.el.getBoundingClientRect();
