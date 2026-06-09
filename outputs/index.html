@@ -562,7 +562,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.7</div>
+        <div class="version">Version 0.71</div>
       </div>
     </section>
 
@@ -607,7 +607,7 @@
       let lastGiantAt = -20000;
       let highScore = loadHighScore();
       let recoveryPoints = 0;
-      let sweetThreshold = 1000;
+      let sweetThreshold = 500;
       let sweetPending = false;
       let sweetActive = false;
 
@@ -982,7 +982,7 @@
         score = 0;
         crowns = 3;
         recoveryPoints = 0;
-        sweetThreshold = 1000;
+        sweetThreshold = 500;
         sweetPending = false;
         sweetActive = false;
         lastGiantAt = -20000;
