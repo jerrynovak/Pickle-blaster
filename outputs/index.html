@@ -394,6 +394,17 @@
       letter-spacing: .02em;
     }
 
+    #gameOverPanel h1 {
+      font-size: clamp(36px, 10vw, 64px);
+      letter-spacing: -.04em;
+      white-space: nowrap;
+    }
+
+    #gameOverPanel h1 span {
+      display: inline;
+      font-size: 1em;
+    }
+
     .mascot {
       display: inline-block;
       margin: 12px 0 5px;
@@ -486,7 +497,7 @@
 
     <section id="gameOverPanel" class="panel hidden" aria-live="assertive">
       <div class="card">
-        <h1>BLASTED<span>!</span></h1>
+        <h1>BLASTED <span>!</span></h1>
         <div class="mascot" aria-hidden="true">👑🥒</div>
         <div id="finalScore" class="big-score">0 points</div>
         <p id="gameOverMessage">The royal picnic has been pickled!</p>
