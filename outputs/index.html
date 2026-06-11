@@ -339,6 +339,34 @@
       filter: drop-shadow(0 0 9px #ecff60);
     }
 
+    .sunglasses {
+      position: absolute;
+      z-index: 3;
+      top: 38%;
+      left: 13%;
+      width: 74%;
+      height: max(4px, calc(var(--w) * .07));
+      border-radius: 8px;
+      background: #5b321c;
+      pointer-events: none;
+    }
+
+    .sunglasses::before,
+    .sunglasses::after {
+      content: "";
+      position: absolute;
+      top: calc(var(--w) * -.11);
+      width: 38%;
+      height: calc(var(--w) * .3);
+      border: max(3px, calc(var(--w) * .045)) solid #5b321c;
+      border-radius: 26% 26% 46% 46%;
+      background: linear-gradient(145deg, #9b6a42 0 28%, #5a321f 31% 100%);
+      box-shadow: inset 3px 3px 0 rgba(255,255,255,.18);
+    }
+
+    .sunglasses::before { left: 0; }
+    .sunglasses::after { right: 0; }
+
     .splat {
       position: absolute;
       z-index: 8;
@@ -607,7 +635,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.83</div>
+        <div class="version">Version 0.9</div>
       </div>
     </section>
 
@@ -822,29 +850,32 @@
       function spawnPickle(elapsed) {
         const level = Math.min(1.8, elapsed / 60000);
         const sweet = sweetPending;
-        const fusePickle = !sweet && elapsed > 7000 && Math.random() < .0175;
-        const giantChance = !sweet && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
+        const bigDavid = !sweet && Math.random() < .0025;
+        const fusePickle = !sweet && !bigDavid && elapsed > 7000 && Math.random() < .0175;
+        const giantChance = !sweet && !bigDavid && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
-        const friendly = !sweet && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
-        const rascal = !sweet && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
+        const friendly = !sweet && !bigDavid && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
+        const rascal = !sweet && !bigDavid && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
         if (sweet) {
           sweetPending = false;
           sweetActive = true;
           showToast("THE SWEET PICKLE!");
+        } else if (bigDavid) {
+          showToast("BIG DAVID!");
         } else if (fusePickle) {
           showToast("SPICY PICKLE!");
         }
 
         const viewportWidth = game.clientWidth;
-        let width = giant
+        let width = giant || bigDavid
           ? Math.min(viewportWidth * .3, 175)
           : 38 + Math.random() * Math.min(54, viewportWidth * .09);
         width = Math.max(36, width);
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant ? " giant" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}`;
+        el.className = `pickle${giant || bigDavid ? " giant" : ""}${bigDavid ? " big-david" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
         if (friendly || sweet) {
@@ -858,8 +889,13 @@
           fuse.className = "fuse";
           el.appendChild(fuse);
         }
+        if (bigDavid) {
+          const sunglasses = document.createElement("span");
+          sunglasses.className = "sunglasses";
+          el.appendChild(sunglasses);
+        }
 
-        const maxHp = giant ? Math.max(3, Math.round(width / 38)) : 1;
+        const maxHp = bigDavid ? 10 : giant ? Math.max(3, Math.round(width / 38)) : 1;
         if (giant) {
           showToast("GIANT GHERKIN!");
         }
@@ -868,12 +904,12 @@
         const margin = 8;
         const x = margin + Math.random() * Math.max(1, viewportWidth - width - margin * 2);
         const baseSpeed = 52 + (92 - Math.min(width, 92)) * .8;
-        const speed = (giant ? 34 : baseSpeed) * (1 + level * .55);
+        const speed = (giant || bigDavid ? 34 : baseSpeed) * (1 + level * .55);
         const pickle = {
           el, x, y: -width * 1.9, width, initialWidth: width, speed,
           rot: Math.random() * 26 - 13,
-          spin: (Math.random() * 42 - 21) * (giant ? .35 : 1),
-          hp: maxHp, maxHp, giant, rascal, friendly, sweet, fusePickle, tongueOut: false,
+          spin: (Math.random() * 42 - 21) * (giant || bigDavid ? .35 : 1),
+          hp: maxHp, maxHp, giant, bigDavid, rascal, friendly, sweet, fusePickle, tongueOut: false,
           nextTongue: performance.now() + 800 + Math.random() * 1800,
           tongueUntil: 0, alive: true
         };
@@ -887,7 +923,7 @@
       }
 
       function picklePoints(pickle) {
-        return pickle.giant
+        return pickle.giant || pickle.bigDavid
           ? 25 + pickle.maxHp * 3
           : Math.max(5, Math.round(12 - pickle.width / 12));
       }
@@ -974,7 +1010,8 @@
         }
 
         addScore(picklePoints(source));
-        showToast(blasted ? `SPICY BLAST x${blasted + 1}!` : "SPICY BLAST!");
+        const blastName = source.bigDavid ? "BIG DAVID BLAST" : "SPICY BLAST";
+        showToast(blasted ? `${blastName} x${blasted + 1}!` : `${blastName}!`);
         game.animate(
           [
             { filter: "brightness(1)", transform: "scale(1)" },
@@ -1024,17 +1061,18 @@
         }
 
         const willExplode = pickle.rascal && pickle.tongueOut && pickle.hp === 1;
+        const willMightyBlast = pickle.bigDavid && pickle.hp === 1;
         pickle.hp--;
         sound("blast");
         const rect = pickle.el.getBoundingClientRect();
         makeSplat(
           event.clientX || rect.left + rect.width / 2,
           event.clientY || rect.top + rect.height / 2,
-          pickle.hp ? `${pickle.hp}!` : willExplode ? "KABOOM!" : "POP!"
+          pickle.hp ? `${pickle.hp}!` : willExplode || willMightyBlast ? "KABOOM!" : "POP!"
         );
 
         if (pickle.hp > 0) {
-          if (pickle.giant) {
+          if (pickle.giant || pickle.bigDavid) {
             const centerX = pickle.x + pickle.width / 2;
             const centerY = pickle.y + pickle.width * .875;
             const remaining = pickle.hp / pickle.maxHp;
@@ -1055,13 +1093,15 @@
         } else {
           pickle.alive = false;
           pickle.el.remove();
-          if (willExplode) {
+          if (willMightyBlast) {
+            detonateFusePickle(pickle);
+          } else if (willExplode) {
             explodePickle(pickle);
           } else {
             addScore(picklePoints(pickle));
           }
           if (pickle.giant) showToast("HUGE DILL!");
-          else if (!willExplode && score > 0 && score % 50 < 10) showToast(cheers[Math.floor(Math.random() * cheers.length)]);
+          else if (!willExplode && !willMightyBlast && score > 0 && score % 50 < 10) showToast(cheers[Math.floor(Math.random() * cheers.length)]);
         }
         scoreEl.textContent = score;
       }
