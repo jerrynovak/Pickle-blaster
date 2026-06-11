@@ -635,7 +635,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.9</div>
+        <div class="version">Version 0.91</div>
       </div>
     </section>
 
@@ -850,7 +850,7 @@
       function spawnPickle(elapsed) {
         const level = Math.min(1.8, elapsed / 60000);
         const sweet = sweetPending;
-        const bigDavid = !sweet && Math.random() < .0025;
+        const bigDavid = !sweet && Math.random() < .009;
         const fusePickle = !sweet && !bigDavid && elapsed > 7000 && Math.random() < .0175;
         const giantChance = !sweet && !bigDavid && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
