@@ -635,7 +635,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.92</div>
+        <div class="version">Version 0.93</div>
       </div>
     </section>
 
@@ -1154,6 +1154,10 @@
           addScore(25);
           happySound();
           showToast("ROYAL PICKLE +25!");
+          return;
+        }
+        if (pickle.fusePickle) {
+          showToast("SPICY PICKLE FIZZLED!");
           return;
         }
         sound("bonk");
