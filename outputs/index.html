@@ -354,24 +354,6 @@
       50% { opacity: .25; filter: brightness(.6); }
     }
 
-    .jakey-value {
-      position: absolute;
-      z-index: 5;
-      left: 50%;
-      top: calc(var(--w) * -.72);
-      min-width: calc(var(--w) * .72);
-      padding: 3px 6px;
-      border: max(2px, calc(var(--w) * .035)) solid var(--ink);
-      border-radius: 10px;
-      background: var(--cream);
-      color: var(--dark-green);
-      font-size: max(12px, calc(var(--w) * .22));
-      line-height: 1;
-      text-align: center;
-      transform: translateX(-50%);
-      pointer-events: none;
-    }
-
     @keyframes tongue-wag {
       from { transform: rotate(-9deg); }
       to { transform: rotate(9deg); }
@@ -696,7 +678,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.942</div>
+        <div class="version">Version 0.943</div>
       </div>
     </section>
 
@@ -1038,11 +1020,8 @@
         }
         if (jakey) {
           const light = document.createElement("span");
-          const value = document.createElement("span");
           light.className = "jakey-light";
-          value.className = "jakey-value";
-          value.textContent = "+25";
-          el.append(light, value);
+          el.appendChild(light);
         }
 
         const maxHp = bigDavid ? 10 : giant ? Math.max(3, Math.round(width / 38)) : 1;
@@ -1099,7 +1078,6 @@
           target.alive = false;
           target.el.remove();
           jakey.carriedPoints += picklePoints(target);
-          jakey.el.querySelector(".jakey-value").textContent = `+${jakey.carriedPoints}`;
           makeSplat(targetX, targetY, "ZAP!");
           sound("blast");
         }
