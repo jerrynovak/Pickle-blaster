@@ -323,6 +323,55 @@
       to { scale: 1.18; rotate: 12deg; }
     }
 
+    .jakey {
+      border-color: #246888;
+      background:
+        radial-gradient(circle at 30% 25%, #ffe15a 0 4%, transparent 4.7%),
+        radial-gradient(circle at 72% 48%, #ffe15a 0 4.5%, transparent 5.2%),
+        radial-gradient(circle at 28% 70%, #ffe15a 0 4%, transparent 4.7%),
+        radial-gradient(circle at 66% 82%, #ffe15a 0 3.6%, transparent 4.3%),
+        linear-gradient(100deg, #5dbce0 0 15%, #9ee8ff 25% 55%, #61c5e9 72%, #348cae);
+      filter: drop-shadow(0 0 9px rgba(91, 255, 114, .75));
+    }
+
+    .jakey-light {
+      position: absolute;
+      z-index: 4;
+      top: calc(var(--w) * -.3);
+      left: 50%;
+      width: calc(var(--w) * .34);
+      height: calc(var(--w) * .3);
+      border: max(3px, calc(var(--w) * .045)) solid #185c29;
+      border-radius: 50% 50% 20% 20%;
+      background: #57ff72;
+      box-shadow: 0 0 calc(var(--w) * .35) calc(var(--w) * .12) #57ff72;
+      transform: translateX(-50%);
+      animation: jakey-light .3s steps(2, end) infinite;
+      pointer-events: none;
+    }
+
+    @keyframes jakey-light {
+      50% { opacity: .25; filter: brightness(.6); }
+    }
+
+    .jakey-value {
+      position: absolute;
+      z-index: 5;
+      left: 50%;
+      top: calc(var(--w) * -.72);
+      min-width: calc(var(--w) * .72);
+      padding: 3px 6px;
+      border: max(2px, calc(var(--w) * .035)) solid var(--ink);
+      border-radius: 10px;
+      background: var(--cream);
+      color: var(--dark-green);
+      font-size: max(12px, calc(var(--w) * .22));
+      line-height: 1;
+      text-align: center;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
     @keyframes tongue-wag {
       from { transform: rotate(-9deg); }
       to { transform: rotate(9deg); }
@@ -559,9 +608,21 @@
     }
 
     .high-score.new-record {
-      color: var(--pink);
+      color: var(--cream);
+      background: var(--dark-green);
+      border-radius: 10px;
+      box-shadow: 0 0 0 4px var(--cream), 0 0 0 8px var(--dark-green);
       animation: record-pop .7s ease-in-out infinite alternate;
     }
+
+    #scorePill.record-flash {
+      color: var(--cream);
+      background: var(--ink);
+      border-color: var(--cream);
+      box-shadow: 0 5px 0 var(--cream), 0 0 0 4px var(--ink);
+    }
+
+    #scorePill.record-flash #score { color: var(--yellow); }
 
     @keyframes record-pop {
       from { transform: scale(1) rotate(-1deg); }
@@ -621,7 +682,7 @@
 <body>
   <main id="game" aria-label="Pickle Blaster game area">
     <div class="hud" aria-live="polite">
-      <div class="pill"><span class="label">Pickle Points</span><strong id="score">0</strong></div>
+      <div id="scorePill" class="pill"><span class="label">Pickle Points</span><strong id="score">0</strong></div>
       <div class="pill"><span class="label">Royal Pickle Guard</span><div id="crowns" aria-label="3 crowns"></div></div>
     </div>
 
@@ -635,7 +696,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.93</div>
+        <div class="version">Version 0.941</div>
       </div>
     </section>
 
@@ -656,6 +717,7 @@
       "use strict";
 
       const game = document.getElementById("game");
+      const scorePill = document.getElementById("scorePill");
       const scoreEl = document.getElementById("score");
       const crownsEl = document.getElementById("crowns");
       const toastEl = document.getElementById("toast");
@@ -683,6 +745,11 @@
       let sweetThreshold = 500;
       let sweetPending = false;
       let sweetActive = false;
+      let newRecordThisRun = false;
+      let recordFlashTimer = 0;
+      let jakeyPending = false;
+      let jakeyActive = false;
+      let jakeySiren = null;
 
       const cheers = ["DILL-IGHTFUL!", "CRUNCH-TASTIC!", "BRINE WORK!", "PICKLE POWER!", "JAR-DROPPING!"];
       const bonks = ["BONK!", "PLOP!", "OH, DILL!"];
@@ -818,11 +885,11 @@
         } catch (_) {}
       }
 
-      function happySound() {
+      function happySound(delay = 0) {
         if (muted) return;
         try {
           audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-          const now = audioContext.currentTime;
+          const now = audioContext.currentTime + delay;
           const notes = [523.25, 659.25, 783.99, 1046.5];
           notes.forEach((frequency, index) => {
             const oscillator = audioContext.createOscillator();
@@ -839,6 +906,42 @@
             oscillator.stop(start + .25);
           });
         } catch (_) {}
+      }
+
+      function startJakeySiren() {
+        if (muted || jakeySiren) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          const now = audioContext.currentTime;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = "square";
+          for (let i = 0; i < 1200; i++) {
+            oscillator.frequency.setValueAtTime(i % 2 ? 520 : 880, now + i * .22);
+          }
+          gain.gain.setValueAtTime(.035, now);
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(now);
+          jakeySiren = { oscillator, gain };
+        } catch (_) {}
+      }
+
+      function stopJakeySiren() {
+        if (!jakeySiren) return;
+        try {
+          const now = audioContext.currentTime;
+          jakeySiren.gain.gain.cancelScheduledValues(now);
+          jakeySiren.gain.gain.setValueAtTime(jakeySiren.gain.gain.value || .035, now);
+          jakeySiren.gain.gain.exponentialRampToValueAtTime(.001, now + .08);
+          jakeySiren.oscillator.stop(now + .09);
+        } catch (_) {}
+        jakeySiren = null;
+      }
+
+      function finishJakey() {
+        jakeyActive = false;
+        stopJakeySiren();
       }
 
       function showToast(message) {
@@ -861,6 +964,19 @@
       function addScore(points) {
         score += points;
         scoreEl.textContent = score;
+        if (score > 0 && score > highScore) {
+          highScore = score;
+          saveHighScore();
+          startHighScoreEl.textContent = `High Score: ${highScore}`;
+          if (!newRecordThisRun) {
+            newRecordThisRun = true;
+            scorePill.classList.add("record-flash");
+            clearTimeout(recordFlashTimer);
+            recordFlashTimer = setTimeout(() => scorePill.classList.remove("record-flash"), 3000);
+            happySound();
+            happySound(.55);
+          }
+        }
         if (crowns === 0 && !sweetPending && !sweetActive) {
           recoveryPoints += points;
           if (recoveryPoints >= sweetThreshold) {
@@ -870,15 +986,16 @@
         }
       }
 
-      function spawnPickle(elapsed) {
+      function spawnPickle(elapsed, forceJakey = false) {
         const level = Math.min(1.8, elapsed / 60000);
-        const sweet = sweetPending;
-        const bigDavid = !sweet && Math.random() < .009;
-        const fusePickle = !sweet && !bigDavid && elapsed > 7000 && Math.random() < .0175;
-        const giantChance = !sweet && !bigDavid && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
+        const jakey = forceJakey;
+        const sweet = !jakey && sweetPending;
+        const bigDavid = !jakey && !sweet && Math.random() < .009;
+        const fusePickle = !jakey && !sweet && !bigDavid && elapsed > 7000 && Math.random() < .0175;
+        const giantChance = !jakey && !sweet && !bigDavid && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
-        const friendly = !sweet && !bigDavid && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
-        const rascal = !sweet && !bigDavid && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
+        const friendly = !jakey && !sweet && !bigDavid && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
+        const rascal = !jakey && !sweet && !bigDavid && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
         if (sweet) {
           sweetPending = false;
@@ -888,6 +1005,8 @@
           showToast("BIG DAVID!");
         } else if (fusePickle) {
           showToast("SPICY PICKLE!");
+        } else if (jakey) {
+          showToast("JAKEY PICKLE!");
         }
 
         const viewportWidth = game.clientWidth;
@@ -898,7 +1017,7 @@
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant || bigDavid ? " giant" : ""}${bigDavid ? " big-david" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}`;
+        el.className = `pickle${giant || bigDavid ? " giant" : ""}${bigDavid ? " big-david" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}${jakey ? " jakey" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
         if (friendly || sweet) {
@@ -917,6 +1036,14 @@
           sunglasses.className = "sunglasses";
           el.appendChild(sunglasses);
         }
+        if (jakey) {
+          const light = document.createElement("span");
+          const value = document.createElement("span");
+          light.className = "jakey-light";
+          value.className = "jakey-value";
+          value.textContent = "+25";
+          el.append(light, value);
+        }
 
         const maxHp = bigDavid ? 10 : giant ? Math.max(3, Math.round(width / 38)) : 1;
         if (giant) {
@@ -927,12 +1054,17 @@
         const margin = 8;
         const x = margin + Math.random() * Math.max(1, viewportWidth - width - margin * 2);
         const baseSpeed = 52 + (92 - Math.min(width, 92)) * .8;
-        const speed = (giant || bigDavid ? 34 : baseSpeed) * (1 + level * .55);
+        const speed = (jakey ? baseSpeed * 1.75 : giant || bigDavid ? 34 : baseSpeed) * (1 + level * .55);
         const pickle = {
           el, x, y: -width * 1.9, width, initialWidth: width, speed,
           rot: Math.random() * 26 - 13,
           spin: (Math.random() * 42 - 21) * (giant || bigDavid ? .35 : 1),
-          hp: maxHp, maxHp, giant, bigDavid, rascal, friendly, sweet, fusePickle, tongueOut: false,
+          hp: maxHp, maxHp, giant, bigDavid, rascal, friendly, sweet, fusePickle, jakey,
+          carriedPoints: jakey ? 25 : 0,
+          zigDirection: Math.random() < .5 ? -1 : 1,
+          zigSpeed: 150 + Math.random() * 120,
+          nextZig: performance.now() + 180 + Math.random() * 320,
+          tongueOut: false,
           nextTongue: performance.now() + 800 + Math.random() * 1800,
           tongueUntil: 0, alive: true
         };
@@ -946,9 +1078,31 @@
       }
 
       function picklePoints(pickle) {
-        return pickle.giant || pickle.bigDavid
+        return pickle.jakey
+          ? pickle.carriedPoints
+          : pickle.giant || pickle.bigDavid
           ? 25 + pickle.maxHp * 3
           : Math.max(5, Math.round(12 - pickle.width / 12));
+      }
+
+      function collectJakeyTargets(jakey) {
+        const jakeyX = jakey.x + jakey.width / 2;
+        const jakeyY = jakey.y + jakey.width * .875;
+        for (const target of pickles) {
+          if (!target.alive || target === jakey || target.friendly || target.sweet) continue;
+          const targetX = target.x + target.width / 2;
+          const targetY = target.y + target.width * .875;
+          const overlapsX = Math.abs(targetX - jakeyX) < (jakey.width + target.width) * .42;
+          const overlapsY = Math.abs(targetY - jakeyY) < (jakey.width + target.width) * .72;
+          if (!overlapsX || !overlapsY) continue;
+
+          target.alive = false;
+          target.el.remove();
+          jakey.carriedPoints += picklePoints(target);
+          jakey.el.querySelector(".jakey-value").textContent = `+${jakey.carriedPoints}`;
+          makeSplat(targetX, targetY, "ZAP!");
+          sound("blast");
+        }
       }
 
       function explodePickle(source) {
@@ -973,6 +1127,7 @@
           if (Math.hypot(pickleX - centerX, pickleY - centerY) <= radius) {
             pickle.alive = false;
             pickle.el.remove();
+            if (pickle.jakey) finishJakey();
             if (pickle.friendly || pickle.sweet) {
               makeSplat(pickleX, pickleY, "OOPS!");
               if (pickle.sweet) sweetActive = false;
@@ -1026,6 +1181,7 @@
             const targetY = target.y + target.width * .875;
             target.alive = false;
             target.el.remove();
+            if (target.jakey) finishJakey();
             addScore(picklePoints(target));
             makeSplat(targetX, targetY, "POOF!");
             blasted++;
@@ -1034,7 +1190,7 @@
 
         addScore(picklePoints(source));
         const blastName = source.bigDavid ? "BIG DAVID BLAST" : "SPICY BLAST";
-        const earnedBigDCrown = source.bigDavid && blasted >= 12 && crowns < 3;
+        const earnedBigDCrown = source.bigDavid && blasted >= 10 && crowns < 3;
         if (earnedBigDCrown) {
           crowns++;
           updateCrowns();
@@ -1057,6 +1213,22 @@
         event.preventDefault();
         event.stopPropagation();
         if (!running || !pickle.alive) return;
+
+        if (pickle.jakey) {
+          const jakeyRect = pickle.el.getBoundingClientRect();
+          pickle.alive = false;
+          pickle.el.remove();
+          finishJakey();
+          sound("blast");
+          makeSplat(
+            event.clientX || jakeyRect.left + jakeyRect.width / 2,
+            event.clientY || jakeyRect.top + jakeyRect.height / 2,
+            `+${pickle.carriedPoints}`
+          );
+          addScore(pickle.carriedPoints);
+          showToast(`JAKEY JACKPOT +${pickle.carriedPoints}!`);
+          return;
+        }
 
         if (pickle.fusePickle) {
           const fuseRect = pickle.el.getBoundingClientRect();
@@ -1140,6 +1312,7 @@
       function groundImpact(pickle) {
         pickle.alive = false;
         pickle.el.remove();
+        if (pickle.jakey) finishJakey();
         if (pickle.sweet) {
           sweetActive = false;
           crowns = Math.min(3, crowns + 1);
@@ -1185,9 +1358,22 @@
         game.style.setProperty("--ground-rise", `${groundRise}px`);
 
         if (time >= nextSpawn) {
-          spawnPickle(elapsed);
-          const ramp = Math.min(650, elapsed / 75);
-          nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
+          if (jakeyPending) {
+            jakeyPending = false;
+            jakeyActive = true;
+            spawnPickle(elapsed, true);
+            const ramp = Math.min(650, elapsed / 75);
+            nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
+          } else if (!sweetPending && !jakeyActive && Math.random() < .009) {
+            jakeyPending = true;
+            startJakeySiren();
+            showToast("JAKEY INCOMING!");
+            nextSpawn = time + 2000;
+          } else {
+            spawnPickle(elapsed);
+            const ramp = Math.min(650, elapsed / 75);
+            nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
+          }
         }
 
         const ground = game.clientHeight - 40 - groundRise;
@@ -1204,10 +1390,25 @@
               pickle.el.classList.remove("tongue-out");
             }
           }
+          if (pickle.jakey) {
+            if (time >= pickle.nextZig) {
+              pickle.zigDirection = Math.random() < .5 ? -1 : 1;
+              pickle.zigSpeed = 150 + Math.random() * 150;
+              pickle.nextZig = time + 180 + Math.random() * 380;
+            }
+            pickle.x += pickle.zigDirection * pickle.zigSpeed * dt;
+            if (pickle.x <= 4 || pickle.x + pickle.width >= game.clientWidth - 4) {
+              pickle.x = Math.max(4, Math.min(game.clientWidth - pickle.width - 4, pickle.x));
+              pickle.zigDirection *= -1;
+              pickle.nextZig = time + 180 + Math.random() * 260;
+            }
+            pickle.el.style.setProperty("--x", `${pickle.x}px`);
+          }
           pickle.y += pickle.speed * dt;
           pickle.rot += pickle.spin * dt;
           pickle.el.style.setProperty("--y", `${pickle.y}px`);
           pickle.el.style.setProperty("--rot", `${pickle.rot}deg`);
+          if (pickle.jakey) collectJakeyTargets(pickle);
           if (pickle.y + pickle.width * 1.75 >= ground) groundImpact(pickle);
         }
         pickles = pickles.filter(pickle => pickle.alive);
@@ -1215,6 +1416,9 @@
       }
 
       function clearPickles() {
+        stopJakeySiren();
+        jakeyPending = false;
+        jakeyActive = false;
         pickles.forEach(pickle => pickle.el.remove());
         pickles = [];
         game.querySelectorAll(".splat, .ground-bump, .blast-ring").forEach(el => el.remove());
@@ -1229,6 +1433,10 @@
         sweetThreshold = 500;
         sweetPending = false;
         sweetActive = false;
+        newRecordThisRun = false;
+        finalHighScoreEl.classList.remove("new-record");
+        scorePill.classList.remove("record-flash");
+        clearTimeout(recordFlashTimer);
         lastGiantAt = -20000;
         scoreEl.textContent = "0";
         game.style.setProperty("--ground-rise", "0px");
@@ -1244,12 +1452,11 @@
 
       function endGame() {
         running = false;
+        stopJakeySiren();
+        jakeyPending = false;
+        jakeyActive = false;
         cancelAnimationFrame(animationId);
-        const isNewRecord = score > highScore;
-        if (isNewRecord) {
-          highScore = score;
-          saveHighScore();
-        }
+        const isNewRecord = newRecordThisRun && score > 0;
         updateHighScoreDisplays(isNewRecord);
         finalScoreEl.textContent = `${score} point${score === 1 ? "" : "s"}`;
         const messages = score < 40
@@ -1258,6 +1465,9 @@
             ? ["A noble effort! The dill was strong today.", "You blasted bravely, Pickle Pal!"]
             : ["Legend says the jars still fear your name.", "A truly brine-boggling performance!"];
         gameOverMessage.textContent = messages[Math.floor(Math.random() * messages.length)];
+        if (isNewRecord) {
+          setTimeout(() => finalHighScoreEl.classList.remove("new-record"), 3000);
+        }
         setTimeout(() => gameOverPanel.classList.remove("hidden"), 300);
       }
 
@@ -1265,12 +1475,19 @@
       document.getElementById("restartButton").addEventListener("click", startGame);
       muteButton.addEventListener("click", () => {
         muted = !muted;
+        if (muted) stopJakeySiren();
+        else if (running && (jakeyPending || jakeyActive)) startJakeySiren();
         muteButton.textContent = muted ? "🔇" : "🔊";
         muteButton.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
       });
 
       document.addEventListener("visibilitychange", () => {
-        if (document.hidden && running) lastTime = performance.now();
+        if (document.hidden && running) {
+          lastTime = performance.now();
+          stopJakeySiren();
+        } else if (!document.hidden && running && (jakeyPending || jakeyActive)) {
+          startJakeySiren();
+        }
       });
 
       let lastTouchEnd = 0;
