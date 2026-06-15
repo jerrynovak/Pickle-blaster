@@ -696,7 +696,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.941</div>
+        <div class="version">Version 0.942</div>
       </div>
     </section>
 
@@ -1062,7 +1062,7 @@
           hp: maxHp, maxHp, giant, bigDavid, rascal, friendly, sweet, fusePickle, jakey,
           carriedPoints: jakey ? 25 : 0,
           zigDirection: Math.random() < .5 ? -1 : 1,
-          zigSpeed: 150 + Math.random() * 120,
+          zigSpeed: 75 + Math.random() * 60,
           nextZig: performance.now() + 180 + Math.random() * 320,
           tongueOut: false,
           nextTongue: performance.now() + 800 + Math.random() * 1800,
@@ -1393,7 +1393,7 @@
           if (pickle.jakey) {
             if (time >= pickle.nextZig) {
               pickle.zigDirection = Math.random() < .5 ? -1 : 1;
-              pickle.zigSpeed = 150 + Math.random() * 150;
+              pickle.zigSpeed = 75 + Math.random() * 75;
               pickle.nextZig = time + 180 + Math.random() * 380;
             }
             pickle.x += pickle.zigDirection * pickle.zigSpeed * dt;
