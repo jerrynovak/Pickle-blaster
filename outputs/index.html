@@ -739,7 +739,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.95</div>
+        <div class="version">Version 0.96</div>
       </div>
     </section>
 
@@ -1071,6 +1071,30 @@
         } catch (_) {}
       }
 
+      function barrelSlurpSound() {
+        if (muted) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          const now = audioContext.currentTime;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          const filter = audioContext.createBiquadFilter();
+          oscillator.type = "sawtooth";
+          oscillator.frequency.setValueAtTime(360, now);
+          oscillator.frequency.exponentialRampToValueAtTime(86, now + .18);
+          filter.type = "bandpass";
+          filter.frequency.setValueAtTime(900, now);
+          filter.frequency.exponentialRampToValueAtTime(240, now + .18);
+          gain.gain.setValueAtTime(.09, now);
+          gain.gain.exponentialRampToValueAtTime(.001, now + .22);
+          oscillator.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(now);
+          oscillator.stop(now + .24);
+        } catch (_) {}
+      }
+
       function showToast(message) {
         toastEl.textContent = message;
         toastEl.classList.remove("show");
@@ -1246,14 +1270,13 @@
       }
 
       function collectBarrelTargets(barrel) {
-        const barrelX = barrel.x + barrel.width / 2;
         const barrelY = barrel.y + barrel.width * .875;
-        const radius = Math.max(135, barrel.width * 1.55);
+        const verticalBand = Math.max(80, barrel.width * 1.15);
         for (const target of pickles) {
           if (!target.alive || target === barrel || target.barrel) continue;
           const targetX = target.x + target.width / 2;
           const targetY = target.y + target.width * .875;
-          if (Math.hypot(targetX - barrelX, targetY - barrelY) > radius) continue;
+          if (Math.abs(targetY - barrelY) > verticalBand) continue;
 
           target.alive = false;
           target.el.remove();
@@ -1261,7 +1284,7 @@
           if (target.sweet) sweetActive = false;
           barrel.storedPoints += target.friendly ? 25 : picklePoints(target);
           makeSplat(targetX, targetY, "SLURP!");
-          sound("blast");
+          barrelSlurpSound();
         }
       }
 
