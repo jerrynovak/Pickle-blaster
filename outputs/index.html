@@ -411,6 +411,54 @@
     .sunglasses::before { left: 0; }
     .sunglasses::after { right: 0; }
 
+    .barrel {
+      border-color: #5a311d;
+      border-radius: 22% 24% 26% 25% / 15% 15% 85% 85%;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.16), transparent 18% 82%, rgba(0,0,0,.18)),
+        repeating-linear-gradient(90deg, #8b542b 0 15%, #6f3e21 15% 19%, #a76b35 19% 35%),
+        linear-gradient(#c27a3a, #70401f);
+      filter: drop-shadow(0 0 12px rgba(111, 62, 33, .8));
+    }
+
+    .barrel::before,
+    .barrel::after,
+    .barrel .mouth {
+      display: none;
+    }
+
+    .barrel-band {
+      position: absolute;
+      z-index: 2;
+      left: -7%;
+      width: 114%;
+      height: max(7px, calc(var(--w) * .11));
+      border: max(2px, calc(var(--w) * .025)) solid #2f241e;
+      border-radius: 50%;
+      background: linear-gradient(#d8d1be, #766d61);
+      pointer-events: none;
+    }
+
+    .barrel-band.top { top: 12%; }
+    .barrel-band.middle { top: 45%; }
+    .barrel-band.bottom { top: 78%; }
+
+    .barrel-label {
+      position: absolute;
+      z-index: 3;
+      left: 50%;
+      top: 31%;
+      padding: 3px 8px;
+      border: max(2px, calc(var(--w) * .025)) solid #2f241e;
+      border-radius: 9px;
+      background: var(--cream);
+      color: #5a311d;
+      font-size: max(11px, calc(var(--w) * .18));
+      font-weight: 900;
+      transform: translateX(-50%) rotate(-4deg);
+      pointer-events: none;
+    }
+
     .splat {
       position: absolute;
       z-index: 8;
@@ -691,7 +739,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.944</div>
+        <div class="version">Version 0.95</div>
       </div>
     </section>
 
@@ -745,6 +793,9 @@
       let jakeyPending = false;
       let jakeyActive = false;
       let jakeySiren = null;
+      let barrelPending = false;
+      let barrelActive = false;
+      let barrelSound = null;
 
       const cheers = ["DILL-IGHTFUL!", "CRUNCH-TASTIC!", "BRINE WORK!", "PICKLE POWER!", "JAR-DROPPING!"];
       const bonks = ["BONK!", "PLOP!", "OH, DILL!"];
@@ -939,6 +990,87 @@
         stopJakeySiren();
       }
 
+      function startBarrelSound() {
+        if (muted || barrelSound) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          const now = audioContext.currentTime;
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          const filter = audioContext.createBiquadFilter();
+          oscillator.type = "sawtooth";
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(420, now);
+          for (let i = 0; i < 900; i++) {
+            const t = now + i * .18;
+            oscillator.frequency.setValueAtTime(i % 2 ? 74 : 96, t);
+            filter.frequency.setValueAtTime(i % 2 ? 300 : 520, t);
+          }
+          gain.gain.setValueAtTime(.045, now);
+          oscillator.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(now);
+          barrelSound = { oscillator, gain };
+        } catch (_) {}
+      }
+
+      function stopBarrelSound() {
+        if (!barrelSound) return;
+        try {
+          const now = audioContext.currentTime;
+          barrelSound.gain.gain.cancelScheduledValues(now);
+          barrelSound.gain.gain.setValueAtTime(barrelSound.gain.gain.value || .045, now);
+          barrelSound.gain.gain.exponentialRampToValueAtTime(.001, now + .1);
+          barrelSound.oscillator.stop(now + .11);
+        } catch (_) {}
+        barrelSound = null;
+      }
+
+      function finishBarrel() {
+        barrelActive = false;
+        stopBarrelSound();
+      }
+
+      function barrelPopSound() {
+        if (muted) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          const now = audioContext.currentTime;
+          const master = audioContext.createGain();
+          master.connect(audioContext.destination);
+          master.gain.setValueAtTime(.22, now);
+          master.gain.exponentialRampToValueAtTime(.001, now + .9);
+
+          const thump = audioContext.createOscillator();
+          const thumpGain = audioContext.createGain();
+          thump.type = "sine";
+          thump.frequency.setValueAtTime(72, now);
+          thump.frequency.exponentialRampToValueAtTime(38, now + .28);
+          thumpGain.gain.setValueAtTime(.8, now);
+          thumpGain.gain.exponentialRampToValueAtTime(.001, now + .45);
+          thump.connect(thumpGain);
+          thumpGain.connect(master);
+          thump.start(now);
+          thump.stop(now + .5);
+
+          [196, 246.94, 293.66, 392].forEach((frequency, index) => {
+            const oscillator = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            const start = now + .12 + index * .075;
+            oscillator.type = "square";
+            oscillator.frequency.setValueAtTime(frequency, start);
+            gain.gain.setValueAtTime(.001, start);
+            gain.gain.linearRampToValueAtTime(.12, start + .02);
+            gain.gain.exponentialRampToValueAtTime(.001, start + .32);
+            oscillator.connect(gain);
+            gain.connect(master);
+            oscillator.start(start);
+            oscillator.stop(start + .34);
+          });
+        } catch (_) {}
+      }
+
       function showToast(message) {
         toastEl.textContent = message;
         toastEl.classList.remove("show");
@@ -981,16 +1113,17 @@
         }
       }
 
-      function spawnPickle(elapsed, forceJakey = false) {
+      function spawnPickle(elapsed, forcedSpecial = "") {
         const level = Math.min(1.8, elapsed / 60000);
-        const jakey = forceJakey;
-        const sweet = !jakey && sweetPending;
-        const bigDavid = !jakey && !sweet && Math.random() < .009;
-        const fusePickle = !jakey && !sweet && !bigDavid && elapsed > 7000 && Math.random() < .0175;
-        const giantChance = !jakey && !sweet && !bigDavid && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
+        const jakey = forcedSpecial === "jakey";
+        const barrel = forcedSpecial === "barrel";
+        const sweet = !jakey && !barrel && sweetPending;
+        const bigDavid = !jakey && !barrel && !sweet && Math.random() < .009;
+        const fusePickle = !jakey && !barrel && !sweet && !bigDavid && elapsed > 7000 && Math.random() < .0175;
+        const giantChance = !jakey && !barrel && !sweet && !bigDavid && !fusePickle && elapsed > 9000 && elapsed - lastGiantAt > 12000 && Math.random() < .11;
         const giant = giantChance;
-        const friendly = !jakey && !sweet && !bigDavid && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
-        const rascal = !jakey && !sweet && !bigDavid && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
+        const friendly = !jakey && !barrel && !sweet && !bigDavid && !fusePickle && !giant && elapsed > 4000 && Math.random() < .06;
+        const rascal = !jakey && !barrel && !sweet && !bigDavid && !fusePickle && !giant && !friendly && elapsed > 5000 && Math.random() < .09;
         if (giant) lastGiantAt = elapsed;
         if (sweet) {
           sweetPending = false;
@@ -1002,17 +1135,21 @@
           showToast("SPICY PICKLE!");
         } else if (jakey) {
           showToast("JAKEY PICKLE!");
+        } else if (barrel) {
+          showToast("PICKLE BARREL!");
         }
 
         const viewportWidth = game.clientWidth;
-        let width = giant || bigDavid
+        let width = barrel
+          ? Math.min(viewportWidth * .2, 128)
+          : giant || bigDavid
           ? Math.min(viewportWidth * .3, 175)
           : 38 + Math.random() * Math.min(54, viewportWidth * .09);
         width = Math.max(36, width);
 
         const el = document.createElement("div");
         const mouth = document.createElement("span");
-        el.className = `pickle${giant || bigDavid ? " giant" : ""}${bigDavid ? " big-david" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}${jakey ? " jakey" : ""}`;
+        el.className = `pickle${giant || bigDavid ? " giant" : ""}${bigDavid ? " big-david" : ""}${rascal ? " rascal" : ""}${friendly ? " friendly" : ""}${sweet ? " sweet" : ""}${fusePickle ? " fuse-pickle" : ""}${jakey ? " jakey" : ""}${barrel ? " barrel" : ""}`;
         mouth.className = "mouth";
         el.appendChild(mouth);
         if (friendly || sweet) {
@@ -1036,8 +1173,19 @@
           light.className = "jakey-light";
           el.appendChild(light);
         }
+        if (barrel) {
+          ["top", "middle", "bottom"].forEach(position => {
+            const band = document.createElement("span");
+            band.className = `barrel-band ${position}`;
+            el.appendChild(band);
+          });
+          const label = document.createElement("span");
+          label.className = "barrel-label";
+          label.textContent = "DILL";
+          el.appendChild(label);
+        }
 
-        const maxHp = bigDavid ? 10 : giant ? Math.max(3, Math.round(width / 38)) : 1;
+        const maxHp = barrel ? 20 : bigDavid ? 10 : giant ? Math.max(3, Math.round(width / 38)) : 1;
         if (giant) {
           showToast("GIANT GHERKIN!");
         }
@@ -1046,13 +1194,14 @@
         const margin = 8;
         const x = margin + Math.random() * Math.max(1, viewportWidth - width - margin * 2);
         const baseSpeed = 52 + (92 - Math.min(width, 92)) * .8;
-        const speed = (jakey ? baseSpeed * 1.75 : giant || bigDavid ? 34 : baseSpeed) * (1 + level * .55);
+        const speed = (barrel ? 28 : jakey ? baseSpeed * 1.75 : giant || bigDavid ? 34 : baseSpeed) * (1 + level * .55);
         const pickle = {
           el, x, y: -width * 1.9, width, initialWidth: width, speed,
           rot: Math.random() * 26 - 13,
           spin: (Math.random() * 42 - 21) * (giant || bigDavid ? .35 : 1),
-          hp: maxHp, maxHp, giant, bigDavid, rascal, friendly, sweet, fusePickle, jakey,
+          hp: maxHp, maxHp, giant, bigDavid, rascal, friendly, sweet, fusePickle, jakey, barrel,
           carriedPoints: jakey ? 25 : 0,
+          storedPoints: 0,
           zigDirection: Math.random() < .5 ? -1 : 1,
           zigSpeed: 75 + Math.random() * 60,
           nextZig: performance.now() + 180 + Math.random() * 320,
@@ -1081,7 +1230,7 @@
         const jakeyX = jakey.x + jakey.width / 2;
         const jakeyY = jakey.y + jakey.width * .875;
         for (const target of pickles) {
-          if (!target.alive || target === jakey || target.friendly || target.sweet) continue;
+          if (!target.alive || target === jakey || target.friendly || target.sweet || target.barrel) continue;
           const targetX = target.x + target.width / 2;
           const targetY = target.y + target.width * .875;
           const overlapsX = Math.abs(targetX - jakeyX) < (jakey.width + target.width) * .42;
@@ -1092,6 +1241,26 @@
           target.el.remove();
           jakey.carriedPoints += picklePoints(target);
           makeSplat(targetX, targetY, "ZAP!");
+          sound("blast");
+        }
+      }
+
+      function collectBarrelTargets(barrel) {
+        const barrelX = barrel.x + barrel.width / 2;
+        const barrelY = barrel.y + barrel.width * .875;
+        const radius = Math.max(135, barrel.width * 1.55);
+        for (const target of pickles) {
+          if (!target.alive || target === barrel || target.barrel) continue;
+          const targetX = target.x + target.width / 2;
+          const targetY = target.y + target.width * .875;
+          if (Math.hypot(targetX - barrelX, targetY - barrelY) > radius) continue;
+
+          target.alive = false;
+          target.el.remove();
+          if (target.jakey) finishJakey();
+          if (target.sweet) sweetActive = false;
+          barrel.storedPoints += target.friendly ? 25 : picklePoints(target);
+          makeSplat(targetX, targetY, "SLURP!");
           sound("blast");
         }
       }
@@ -1116,6 +1285,7 @@
           const pickleX = pickle.x + pickle.width / 2;
           const pickleY = pickle.y + pickle.width * .875;
           if (Math.hypot(pickleX - centerX, pickleY - centerY) <= radius) {
+            if (pickle.barrel) continue;
             pickle.alive = false;
             pickle.el.remove();
             if (pickle.jakey) finishJakey();
@@ -1167,7 +1337,7 @@
         for (const target of pickles) {
           if (!target.alive || target === source) continue;
           const isCrowned = target.friendly || target.sweet;
-          if (!isCrowned && !target.fusePickle) {
+          if (!isCrowned && !target.fusePickle && !target.barrel) {
             const targetX = target.x + target.width / 2;
             const targetY = target.y + target.width * .875;
             target.alive = false;
@@ -1218,6 +1388,37 @@
           );
           addScore(pickle.carriedPoints);
           showToast(`JAKEY JACKPOT +${pickle.carriedPoints}!`);
+          return;
+        }
+
+        if (pickle.barrel) {
+          pickle.hp--;
+          sound("blast");
+          makeSplat(event.clientX, event.clientY, pickle.hp ? `${pickle.hp}!` : "BARREL!");
+          if (pickle.hp > 0) {
+            const centerX = pickle.x + pickle.width / 2;
+            const centerY = pickle.y + pickle.width * .875;
+            const remaining = pickle.hp / pickle.maxHp;
+            pickle.width = pickle.initialWidth * (.62 + remaining * .38);
+            pickle.x = centerX - pickle.width / 2;
+            pickle.y = centerY - pickle.width * .875;
+            pickle.el.style.setProperty("--w", `${pickle.width}px`);
+            pickle.el.style.setProperty("--x", `${pickle.x}px`);
+            pickle.el.style.setProperty("--y", `${pickle.y}px`);
+            pickle.el.animate(
+              [{ transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot}deg) scale(1)` },
+               { transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot + 7}deg) scale(.92)` },
+               { transform: `translate3d(${pickle.x}px, ${pickle.y}px, 0) rotate(${pickle.rot}deg) scale(1)` }],
+              { duration: 130 }
+            );
+          } else {
+            pickle.alive = false;
+            pickle.el.remove();
+            finishBarrel();
+            barrelPopSound();
+            addScore(pickle.storedPoints);
+            showToast(`BARREL BONUS +${pickle.storedPoints}!`);
+          }
           return;
         }
 
@@ -1304,6 +1505,7 @@
         pickle.alive = false;
         pickle.el.remove();
         if (pickle.jakey) finishJakey();
+        if (pickle.barrel) finishBarrel();
         if (pickle.sweet) {
           sweetActive = false;
           crowns = Math.min(3, crowns + 1);
@@ -1349,17 +1551,35 @@
         game.style.setProperty("--ground-rise", `${groundRise}px`);
 
         if (time >= nextSpawn) {
-          if (jakeyPending) {
-            jakeyPending = false;
-            jakeyActive = true;
-            spawnPickle(elapsed, true);
+          if (barrelPending) {
+            barrelPending = false;
+            barrelActive = true;
+            spawnPickle(elapsed, "barrel");
             const ramp = Math.min(650, elapsed / 75);
             nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
-          } else if (!sweetPending && !jakeyActive && Math.random() < .009) {
-            jakeyPending = true;
-            startJakeySiren();
-            showToast("JAKEY INCOMING!");
-            nextSpawn = time + 2000;
+          } else if (jakeyPending) {
+            jakeyPending = false;
+            jakeyActive = true;
+            spawnPickle(elapsed, "jakey");
+            const ramp = Math.min(650, elapsed / 75);
+            nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
+          } else if (!sweetPending && !jakeyActive && !barrelActive) {
+            const rareRoll = Math.random();
+            if (rareRoll < .009) {
+              jakeyPending = true;
+              startJakeySiren();
+              showToast("JAKEY INCOMING!");
+              nextSpawn = time + 2000;
+            } else if (rareRoll < .018) {
+              barrelPending = true;
+              startBarrelSound();
+              showToast("BARREL RUMBLE!");
+              nextSpawn = time + 2000;
+            } else {
+              spawnPickle(elapsed);
+              const ramp = Math.min(650, elapsed / 75);
+              nextSpawn = time + Math.max(330, 1040 - ramp) * (.75 + Math.random() * .5);
+            }
           } else {
             spawnPickle(elapsed);
             const ramp = Math.min(650, elapsed / 75);
@@ -1400,6 +1620,7 @@
           pickle.el.style.setProperty("--y", `${pickle.y}px`);
           pickle.el.style.setProperty("--rot", `${pickle.rot}deg`);
           if (pickle.jakey) collectJakeyTargets(pickle);
+          if (pickle.barrel) collectBarrelTargets(pickle);
           if (pickle.y + pickle.width * 1.75 >= ground) groundImpact(pickle);
         }
         pickles = pickles.filter(pickle => pickle.alive);
@@ -1408,8 +1629,11 @@
 
       function clearPickles() {
         stopJakeySiren();
+        stopBarrelSound();
         jakeyPending = false;
         jakeyActive = false;
+        barrelPending = false;
+        barrelActive = false;
         pickles.forEach(pickle => pickle.el.remove());
         pickles = [];
         game.querySelectorAll(".splat, .ground-bump, .blast-ring").forEach(el => el.remove());
@@ -1444,8 +1668,11 @@
       function endGame() {
         running = false;
         stopJakeySiren();
+        stopBarrelSound();
         jakeyPending = false;
         jakeyActive = false;
+        barrelPending = false;
+        barrelActive = false;
         cancelAnimationFrame(animationId);
         const isNewRecord = newRecordThisRun && score > 0;
         updateHighScoreDisplays(isNewRecord);
@@ -1466,8 +1693,13 @@
       document.getElementById("restartButton").addEventListener("click", startGame);
       muteButton.addEventListener("click", () => {
         muted = !muted;
-        if (muted) stopJakeySiren();
-        else if (running && (jakeyPending || jakeyActive)) startJakeySiren();
+        if (muted) {
+          stopJakeySiren();
+          stopBarrelSound();
+        } else if (running) {
+          if (jakeyPending || jakeyActive) startJakeySiren();
+          if (barrelPending || barrelActive) startBarrelSound();
+        }
         muteButton.textContent = muted ? "🔇" : "🔊";
         muteButton.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
       });
@@ -1476,8 +1708,10 @@
         if (document.hidden && running) {
           lastTime = performance.now();
           stopJakeySiren();
-        } else if (!document.hidden && running && (jakeyPending || jakeyActive)) {
-          startJakeySiren();
+          stopBarrelSound();
+        } else if (!document.hidden && running) {
+          if (jakeyPending || jakeyActive) startJakeySiren();
+          if (barrelPending || barrelActive) startBarrelSound();
         }
       });
 
