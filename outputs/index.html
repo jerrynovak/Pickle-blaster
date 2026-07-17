@@ -739,7 +739,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.96</div>
+        <div class="version">Version 0.961</div>
       </div>
     </section>
 
@@ -796,6 +796,7 @@
       let barrelPending = false;
       let barrelActive = false;
       let barrelSound = null;
+      let royalLandings = 0;
 
       const cheers = ["DILL-IGHTFUL!", "CRUNCH-TASTIC!", "BRINE WORK!", "PICKLE POWER!", "JAR-DROPPING!"];
       const bonks = ["BONK!", "PLOP!", "OH, DILL!"];
@@ -1541,8 +1542,24 @@
         }
         if (pickle.friendly) {
           addScore(25);
-          happySound();
-          showToast("ROYAL PICKLE +25!");
+          royalLandings++;
+          if (royalLandings >= 10) {
+            royalLandings = 0;
+            if (crowns <= 2) {
+              crowns++;
+              updateCrowns();
+              happySound();
+              happySound(.35);
+              happySound(.7);
+              showToast("ROYAL CROWN BONUS!");
+            } else {
+              happySound();
+              showToast("ROYAL PICKLE +25!");
+            }
+          } else {
+            happySound();
+            showToast("ROYAL PICKLE +25!");
+          }
           return;
         }
         if (pickle.fusePickle) {
@@ -1671,6 +1688,7 @@
         sweetThreshold = 500;
         sweetPending = false;
         sweetActive = false;
+        royalLandings = 0;
         newRecordThisRun = false;
         finalHighScoreEl.classList.remove("new-record");
         scorePill.classList.remove("record-flash");
