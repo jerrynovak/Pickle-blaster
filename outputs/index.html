@@ -739,7 +739,7 @@
         <p>Tap the tumbling pickles before they bonk the royal picnic. You have <strong>3 crowns</strong>. Guard them with honor. And snacks.</p>
         <div id="startHighScore" class="high-score">High Score: 0</div>
         <button id="startButton" class="action" type="button">Start Blasting</button>
-        <div class="version">Version 0.961</div>
+        <div class="version">Version 0.962</div>
       </div>
     </section>
 
@@ -1374,7 +1374,7 @@
         }
 
         addScore(picklePoints(source));
-        const blastName = source.bigDavid ? "BIG DAVID BLAST" : "SPICY BLAST";
+        const blastName = source.bigDavid ? "BIG DAVID BLAST" : source.barrel ? "BARREL BLAST" : "SPICY BLAST";
         const earnedBigDCrown = source.bigDavid && blasted >= 10 && crowns < 3;
         if (earnedBigDCrown) {
           crowns++;
@@ -1441,7 +1441,7 @@
             finishBarrel();
             barrelPopSound();
             addScore(pickle.storedPoints);
-            showToast(`BARREL BONUS +${pickle.storedPoints}!`);
+            detonateFusePickle(pickle);
           }
           return;
         }
